@@ -349,23 +349,29 @@ fn is_w_execute_signed_action(signed_delegate_action: &SignedDelegateAction) -> 
 /// signed and sent by the sponsor account, rather than relaying it as a
 /// NEP-366 meta-transaction.
 ///
-/// This is a self-call on the user's own wallet-contract account (the
-/// authenticated sender), so the predecessor becomes the sponsor and the
-/// receiver must equal the sender. The inner actions are replayed verbatim.
+/// The delegate action's `sender_id` is a helper account, not the user <E2><80><94> the
+/// user's authorization is the signature inside `w_execute_signed`, which the
+/// wallet contract verifies on-chain. So instead we bind to the authenticated
+/// identity: the receiver (the wallet-contract account being called) must equal
+/// the logged-in user. The sponsor becomes the predecessor; inner actions are
+/// replayed verbatim.
 async fn relay_w_execute_signed(
     state: &Arc<AppState>,
+    auth_user: &AuthUser,
     request: &RelayRequest,
     signed_delegate_action: &SignedDelegateAction,
 ) -> Result<Json<RelayResponse>, (StatusCode, Json<RelayResponse>)> {
-    let sender_id = signed_delegate_action.delegate_action.sender_id.clone();
     let receiver_id = signed_delegate_action.delegate_action.receiver_id.clone();
 
-    // Self-call invariant: the sponsor only ever invokes `w_execute_signed`
-    // on the authenticated user's own wallet-contract account.
-    if receiver_id != sender_id {
+    // The sponsor only ever invokes `w_execute_signed` on the authenticated
+    // user's own wallet-contract account.
+    if receiver_id != auth_user.account_id {
         return Err(error_response(
             StatusCode::FORBIDDEN,
-            "w_execute_signed must target the sender's own account".to_string(),
+            format!(
+                "w_execute_signed receiver '{}' does not match authenticated user '{}'",
+                receiver_id, auth_user.account_id
+            ),
         ));
     }
 
@@ -477,6 +483,16 @@ pub async fn relay_delegate_action(
             )
         })?;
 
+    // `w_execute_signed` is not a DAO meta-transaction: the delegate action is
+    // assembled by a helper account (its `sender_id`) and carries the user's
+    // own signature, verified on-chain by the wallet contract. The sponsor
+    // executes it as a regular transaction on the authenticated user's account,
+    // so it bypasses the DAO proposal/sender checks below.
+    if is_w_execute_signed_action(&signed_delegate_action) {
+        return relay_w_execute_signed(&state, &auth_user, &request, &signed_delegate_action)
+            .await;
+    }
+
     verify_relay_access(&state, &auth_user, &request, &signed_delegate_action).await?;
 
     // Step 2: Verify sender_id matches authenticated user
@@ -528,13 +544,6 @@ pub async fn relay_delegate_action(
                 ));
             }
         }
-    }
-
-    // Step 3b: `w_execute_signed` is executed by the sponsor as a regular
-    // transaction (predecessor = sponsor) on the user's own wallet-contract
-    // account, instead of being relayed as a NEP-366 meta-transaction.
-    if is_w_execute_signed_action(&signed_delegate_action) {
-        return relay_w_execute_signed(&state, &request, &signed_delegate_action).await;
     }
 
     // Step 4: Validate allowed receiver contract and sponsorship limits
