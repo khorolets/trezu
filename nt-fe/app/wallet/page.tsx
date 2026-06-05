@@ -170,6 +170,28 @@ export default function WalletPage() {
     );
 }
 
+// WalletConnect Core must be initialized exactly once per page. The connector
+// is rebuilt whenever the excluded-wallet set changes (e.g. switching to the
+// EIP-712 walletcontract button), so we memoize a single SignClient and reuse
+// it across rebuilds. Re-initializing would trigger "WalletConnect Core is
+// already initialized" and strand the in-flight session, dropping the
+// signMessage result before it reaches the eip712 executor.
+let walletConnectClient: ReturnType<typeof SignClient.init> | null = null;
+function getWalletConnectClient(): ReturnType<typeof SignClient.init> {
+    if (!walletConnectClient) {
+        walletConnectClient = SignClient.init({
+            projectId: "127abc3c78912e30217f188a8c6f22c0",
+            metadata: {
+                name: "Trezu App",
+                description: "Confidential Multisig",
+                url: location.origin,
+                icons: ["/favicon_light.svg", "/favicon_dark.svg"],
+            },
+        });
+    }
+    return walletConnectClient;
+}
+
 function WalletPageContent() {
     const tW = useTranslations("wallet");
     const tWErr = useTranslations("wallet.errors");
@@ -240,18 +262,8 @@ function WalletPageContent() {
         if (initRef.current) return;
         initRef.current = true;
 
-        const walletConnect = SignClient.init({
-            projectId: "127abc3c78912e30217f188a8c6f22c0",
-            metadata: {
-                name: "Trezu App",
-                description: "Confidential Multisig",
-                url: location.origin,
-                icons: ["/favicon_light.svg", "/favicon_dark.svg"],
-            },
-        });
-
         const nc = new NearConnector({
-            walletConnect,
+            walletConnect: getWalletConnectClient(),
             network,
         });
 

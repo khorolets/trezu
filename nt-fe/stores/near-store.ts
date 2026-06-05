@@ -107,6 +107,28 @@ const DIRECT_TRIGGER_WALLET_IDS = [
 // (so `connector.wallet()` resolves it on later calls and after reload).
 const SELECTED_WALLET_STORAGE_KEY = "selected-wallet";
 
+// WalletConnect Core must be initialized exactly once per page. The connector
+// is rebuilt whenever the excluded-wallet set changes (e.g. switching to the
+// EIP-712 walletcontract button), so we memoize a single SignClient and reuse
+// it across rebuilds. Re-initializing would trigger "WalletConnect Core is
+// already initialized" and strand the in-flight session, dropping the
+// signMessage result before it reaches the eip712 executor.
+let walletConnectClient: ReturnType<typeof SignClient.init> | null = null;
+function getWalletConnectClient(): ReturnType<typeof SignClient.init> {
+    if (!walletConnectClient) {
+        walletConnectClient = SignClient.init({
+            projectId: "127abc3c78912e30217f188a8c6f22c0",
+            metadata: {
+                name: "Trezu App",
+                description: "Confidential Multisig",
+                url: location.origin,
+                icons: ["/favicon_light.svg", "/favicon_dark.svg"],
+            },
+        });
+    }
+    return walletConnectClient;
+}
+
 interface NearStore {
     // Wallet state
     connector: NearConnector | null;
@@ -197,16 +219,6 @@ export const useNearStore = create<NearStore>((set, get) => ({
 
         ensureBluetoothIframePermission();
 
-        const walletConnect = SignClient.init({
-            projectId: "127abc3c78912e30217f188a8c6f22c0",
-            metadata: {
-                name: "Trezu App",
-                description: "Confidential Multisig",
-                url: location.origin,
-                icons: ["/favicon_light.svg", "/favicon_dark.svg"],
-            },
-        });
-
         try {
             newConnector = new NearConnector({
                 network: "mainnet",
@@ -221,7 +233,7 @@ export const useNearStore = create<NearStore>((set, get) => ({
                     resolveAuth: true,
                 },
                 excludedWallets,
-                walletConnect,
+                walletConnect: getWalletConnectClient(),
             });
         } catch (err) {
             set({ isInitializing: false });
