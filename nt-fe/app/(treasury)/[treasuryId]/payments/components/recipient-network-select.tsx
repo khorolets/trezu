@@ -43,6 +43,7 @@ interface RecipientNetworkSelectProps {
      */
     recipient: string;
     bridgeAssets: BridgeAsset[];
+    isBridgeAssetsLoading?: boolean;
     sectionRules: SectionRule<RecipientNetworkRuleOption>[];
     /**
      * Fires when the user picks a network. Carries the raw network name so
@@ -116,6 +117,7 @@ export function RecipientNetworkSelect({
     token,
     recipient,
     bridgeAssets,
+    isBridgeAssetsLoading = false,
     sectionRules,
     onNetworkChange,
 }: RecipientNetworkSelectProps) {
@@ -209,7 +211,8 @@ export function RecipientNetworkSelect({
     }, [enrichedOptions, sectionRules]);
 
     const hasCompatibleNetwork = compatibleOptions.length > 0;
-    const isDisabled = !recipient || !hasCompatibleNetwork;
+    const isDisabled =
+        !recipient || isBridgeAssetsLoading || !hasCompatibleNetwork;
 
     // Clear the selection when the address no longer matches it (e.g. user
     // edited the address into a different chain's format).
@@ -220,20 +223,6 @@ export function RecipientNetworkSelect({
         onChange("");
     }, [value, availableOptions, compatibleOptions, onChange]);
 
-    // Auto-pick when there's exactly one compatible network and nothing's
-    // selected (or the selection no longer matches). Skips when the user
-    // already chose a still-compatible network.
-    useEffect(() => {
-        if (compatibleOptions.length !== 1) return;
-        const only = compatibleOptions[0];
-        if (value === only.id) return;
-        if (value && compatibleOptions.some((o) => o.id === value)) return;
-        const timeoutId = window.setTimeout(() => {
-            onChange(only.id);
-            onNetworkChange?.(only);
-        }, 150);
-        return () => window.clearTimeout(timeoutId);
-    }, [compatibleOptions, value, onChange, onNetworkChange]);
     const placeholderText = !recipient
         ? t("enterAddressFirst")
         : !hasCompatibleNetwork
