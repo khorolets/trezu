@@ -173,6 +173,10 @@
             "descriptionDetails": "פרטי בקשה",
             "descriptionList": "עסקאות אחרונות בכל הנכסים"
         },
+        "apiDocs": {
+            "title": "תיעוד API",
+            "description": "תיעוד אינטראקטיבי ל-API הפעילות האחרונה של Trezu"
+        },
         "requests": {
             "title": "בקשות",
             "description": "הצג ונהל את כל בקשות המולטיסיג הממתינות",
@@ -369,6 +373,48 @@
             "contract": "חוזה",
             "transaction": "עסקה"
         }
+    },
+    "apiDocs": {
+        "endpoint": "נקודת קצה",
+        "endpointDescription": "מחזירה פעילות אחרונה (שינויי יתרה מועשרים) עבור חשבון אוצר.",
+        "authentication": "אימות",
+        "authIntro": "התחבר באמצעות ה-JWT של ההפעלה המאוחסן בעוגייה {cookie}:",
+        "authStep1": "פתח את DevTools בדפדפן → Application → Cookies",
+        "authStep2": "העתק את ערך העוגייה {cookie}",
+        "authStep3": "החלף את {placeholder} בדוגמאות למטה",
+        "authPublicNote": "ניתן לשאול אוצרות ציבוריים ללא טוקן. אוצרות חסויים דורשים טוקן הפעלה של חבר באוצר.",
+        "signedInAs": "מחובר בתור {accountId} — רץ עם ההפעלה הנוכחית שלך.",
+        "notSignedIn": "לא מחובר — הבקשה רצה ללא הפעלה.",
+        "parameters": "פרמטרי שאילתה",
+        "paramName": "פרמטר",
+        "paramDescription": "תיאור",
+        "required": "חובה",
+        "params": {
+            "accountId": "מזהה חשבון האוצר (חובה)",
+            "limit": "מספר הפריטים להחזרה (ברירת מחדל 10, מקסימום 100)",
+            "offset": "מספר הפריטים לדילוג עבור עימוד (ברירת מחדל 0)",
+            "minUsdValue": "כלול רק שינויים בשווי דולרי מינימלי זה",
+            "transactionType": "סינון לפי סוג: incoming, outgoing, staking_rewards או exchange",
+            "tokenSymbol": "כלול רק את סמל הטוקן הזה",
+            "tokenSymbolNot": "אל תכלול את סמל הטוקן הזה",
+            "txHash": "סינון לפי גיבוב עסקה",
+            "from": "חשבונות שולחים לכלול, מופרדים בפסיקים",
+            "fromNot": "חשבונות שולחים להחרגה, מופרדים בפסיקים",
+            "to": "חשבונות נמענים לכלול, מופרדים בפסיקים",
+            "toNot": "חשבונות נמענים להחרגה, מופרדים בפסיקים",
+            "startDate": "כלול רק פעילות בתאריך זה או אחריו (ISO 8601)",
+            "endDate": "כלול רק פעילות בתאריך זה או לפניו (ISO 8601)"
+        },
+        "examples": "דוגמאות קוד",
+        "limitLabel": "מגבלה",
+        "offsetLabel": "היסט",
+        "transactionTypeLabel": "סוג עסקה",
+        "run": "הרץ בקשה",
+        "running": "מריץ…",
+        "response": "תגובה",
+        "responseMeta": "HTTP {status} · {duration} ms",
+        "requestFailed": "הבקשה נכשלה",
+        "copy": "העתק"
     },
     "export": {
         "types": {
