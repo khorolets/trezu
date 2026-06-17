@@ -70,6 +70,7 @@ import {
     getProposalExecutedDate,
 } from "@/features/proposals/utils/receipt-utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 const columnHelper = createColumnHelper<Proposal>();
 
@@ -483,6 +484,9 @@ export function ProposalsTable({
     }
 
     const totalPages = Math.ceil(total / pageSize);
+    const tableRows = table.getRowModel().rows;
+    const isLastRowExpanded =
+        tableRows.length > 0 && tableRows[tableRows.length - 1].getIsExpanded();
     const selectedCount = table.getFilteredSelectedRowModel().rows.length;
     const selectedProposals = table
         .getFilteredSelectedRowModel()
@@ -540,6 +544,7 @@ export function ProposalsTable({
                         </div>
                     </div>
                 )}
+
                 <ScrollArea className="grid">
                     <Table>
                         <TableHeader>
@@ -563,7 +568,7 @@ export function ProposalsTable({
                             ))}
                         </TableHeader>
                         <TableBody>
-                            {table.getRowModel().rows.map((row) => (
+                            {tableRows.map((row) => (
                                 <Fragment key={row.id}>
                                     <TableRow
                                         data-state={
@@ -661,8 +666,8 @@ export function ProposalsTable({
                     <ScrollBar orientation="horizontal" />
                 </ScrollArea>
 
-                {onPageChange && (
-                    <div className="pr-2">
+                {onPageChange && totalPages > 1 && (
+                    <div className={cn("pr-2", isLastRowExpanded && "pt-3")}>
                         <Pagination
                             pageIndex={pageIndex}
                             totalPages={totalPages}
