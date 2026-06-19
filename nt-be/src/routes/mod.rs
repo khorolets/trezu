@@ -2,7 +2,7 @@ use axum::{
     Json, Router,
     extract::State,
     http::StatusCode,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -336,6 +336,17 @@ pub fn create_routes(state: Arc<AppState>) -> Router {
         .route(
             "/api/address-book/export",
             get(handlers::address_book::export_address_book),
+        )
+        // Proposal template (custom-proposal framework) endpoints
+        .route(
+            "/api/treasury/{dao_id}/proposal-templates",
+            get(handlers::proposal_templates::list_proposal_templates)
+                .post(handlers::proposal_templates::create_proposal_template),
+        )
+        .route(
+            "/api/treasury/{dao_id}/proposal-templates/{id}",
+            put(handlers::proposal_templates::update_proposal_template)
+                .delete(handlers::proposal_templates::delete_proposal_template),
         )
         // DAO endpoints
         .route(

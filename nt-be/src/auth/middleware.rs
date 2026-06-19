@@ -43,6 +43,22 @@ impl AuthUser {
         member.map(|_| ()).ok_or(AuthError::NotDaoMember)
     }
 
+    /// `verify_dao_member` mapped for HTTP handlers: a genuine non-member is `403`, while a
+    /// DB/internal failure is logged and surfaced as `500` instead of being silently collapsed
+    /// into a misleading `403`. Handlers should prefer this over `.map_err(|_| forbidden())`.
+    pub async fn verify_dao_member_for_http(
+        &self,
+        db: &sqlx::PgPool,
+        dao_id: &AccountIdRef,
+    ) -> Result<(), (StatusCode, String)> {
+        self.verify_dao_member(db, dao_id).await.map_err(|e| {
+            if !matches!(e, AuthError::NotDaoMember) {
+                log::error!("verify_dao_member failed for {}: {e}", self.account_id);
+            }
+            e.status_and_message()
+        })
+    }
+
     fn role_has_action_permission(role: &Value, action_name: &str) -> bool {
         role.get("permissions")
             .and_then(Value::as_array)
