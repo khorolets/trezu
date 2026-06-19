@@ -118,6 +118,7 @@ function defaultMatchesType(field: ManifestFieldBase): boolean {
                 (field.options ?? []).includes(value)
             );
         case "json":
+            // json defaults are opaque — z.unknown() already admits any value, nothing to check.
             return true;
         default:
             return false;
@@ -218,16 +219,14 @@ export const manifestSchema = z
     .refine(
         (manifest) => placeholdersDeclared(manifest.fields, manifest.args),
         {
-            message:
-                "`args` references a {{placeholder}} that no field declares",
+            message: "references a {{placeholder}} that no field declares",
             path: ["args"],
         },
     )
     .refine(
         (manifest) => placeholdersDeclared(manifest.fields, manifest.summary),
         {
-            message:
-                "`summary` references a {{placeholder}} that no field declares",
+            message: "references a {{placeholder}} that no field declares",
             path: ["summary"],
         },
     )

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { manifestErrorMessages, parseManifest } from "./manifest";
+import {
+    manifestErrorMessages,
+    manifestPlaceholders,
+    parseManifest,
+} from "./manifest";
 
 const validManifest = {
     version: 1,
@@ -259,5 +263,26 @@ describe("manifestErrorMessages", () => {
             expect(messages.length).toBeGreaterThan(0);
             expect(messages.some((m) => m.startsWith("id:"))).toBe(true);
         }
+    });
+});
+
+describe("manifestPlaceholders", () => {
+    it("extracts {{name}} from object values, arrays, and nested structures", () => {
+        const found = manifestPlaceholders({
+            a: "{{x}}",
+            b: "static text",
+            c: ["{{y}}", { d: "{{z}}" }],
+        });
+        expect([...found].sort()).toEqual(["x", "y", "z"]);
+    });
+
+    it("ignores escaped {{{{literal}}}} sequences", () => {
+        expect(manifestPlaceholders("a {{{{literal}}}} b").size).toBe(0);
+    });
+
+    it("tolerates undefined / non-string / null values", () => {
+        expect(manifestPlaceholders(undefined).size).toBe(0);
+        expect(manifestPlaceholders({ n: 5, b: true, z: null }).size).toBe(0);
+        expect([...manifestPlaceholders(["{{x}}"])]).toEqual(["x"]);
     });
 });
