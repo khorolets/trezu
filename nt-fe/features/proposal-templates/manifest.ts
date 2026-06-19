@@ -37,8 +37,20 @@ export type ManifestFieldType = z.infer<typeof manifestFieldTypeSchema>;
 const nonBlankString = (label: string) =>
     z.string().trim().min(1, `${label} must not be blank`);
 
+const INTEGER_RE = /^\d+$/;
+
 const integerString = (label: string) =>
-    z.string().regex(/^\d+$/, `${label} must be an integer string`);
+    z.string().regex(INTEGER_RE, `${label} must be an integer string`);
+
+// The manifest id is wrapped in the `[trezu-tmpl:<id>]` description tag, so it must be tag-safe.
+const TAG_SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
+const tagSafeId = z
+    .string()
+    .trim()
+    .regex(
+        TAG_SAFE_ID_RE,
+        "id must be a tag-safe slug ([A-Za-z0-9_-]) so the [trezu-tmpl:<id>] tag stays parseable",
+    );
 
 /** Optional per-field constraints. min/max are digit strings to stay u128/BigInt-safe. */
 export const manifestFieldValidationSchema = z.object({
@@ -47,30 +59,91 @@ export const manifestFieldValidationSchema = z.object({
     pattern: z.string().optional(),
 });
 
-export const manifestFieldSchema = z.object({
+const manifestFieldBase = z.object({
     name: nonBlankString("field.name"),
     label: nonBlankString("field.label"),
     type: manifestFieldTypeSchema,
     required: z.boolean().optional(),
-    // zod v4: z.unknown() already admits `undefined`, so no `.optional()` needed.
+    // zod v4: z.unknown() already admits `undefined`, so no `.optional()` needed. Its shape is
+    // tied to `type` by the refinements below, not left arbitrary.
     default: z.unknown(),
     help: z.string().optional(),
-    /** Choices for a `select` field. */
+    /** Choices for a `select` field (required there, forbidden elsewhere). */
     options: z.array(z.string()).optional(),
     validation: manifestFieldValidationSchema.optional(),
 });
+
+type ManifestFieldBase = z.infer<typeof manifestFieldBase>;
+
+/** `options` is required for `select` and forbidden on every other type. */
+function optionsMatchType(field: ManifestFieldBase): boolean {
+    return field.type === "select"
+        ? Array.isArray(field.options) && field.options.length > 0
+        : field.options === undefined;
+}
+
+/** `validation.pattern` (a regex) only applies to free-text inputs. */
+function patternMatchesType(field: ManifestFieldBase): boolean {
+    return (
+        field.validation?.pattern === undefined ||
+        field.type === "text" ||
+        field.type === "number"
+    );
+}
+
+/** A field's `default`, when present, must match its declared `type`. */
+function defaultMatchesType(field: ManifestFieldBase): boolean {
+    const value = field.default;
+    if (value === undefined) {
+        return true;
+    }
+    switch (field.type) {
+        case "account":
+        case "token":
+        case "text":
+            return typeof value === "string";
+        case "uint":
+        case "amount":
+            return typeof value === "string" && INTEGER_RE.test(value);
+        case "number":
+            return typeof value === "number";
+        case "bool":
+            return typeof value === "boolean";
+        case "select":
+            return (
+                typeof value === "string" &&
+                (field.options?.includes(value) ?? false)
+            );
+        case "json":
+            return true;
+        default:
+            return false;
+    }
+}
+
+export const manifestFieldSchema = manifestFieldBase
+    .refine(optionsMatchType, {
+        message:
+            "`options` is required for a `select` field and forbidden otherwise",
+        path: ["options"],
+    })
+    .refine(patternMatchesType, {
+        message:
+            "`validation.pattern` is only valid on `text` or `number` fields",
+        path: ["validation", "pattern"],
+    })
+    .refine(defaultMatchesType, {
+        message: "`default` does not match the field's `type`",
+        path: ["default"],
+    });
 export type ManifestField = z.infer<typeof manifestFieldSchema>;
 
 /** The on-chain call the template produces. Fixed in v1 (no user-driven binding). */
 export const manifestBindingSchema = z.object({
     receiver_id: nonBlankString("binding.receiver_id"),
     method_name: nonBlankString("binding.method_name"),
-    deposit: z
-        .string()
-        .regex(/^\d+$/, "binding.deposit must be a yoctoNEAR integer string"),
-    gas: z
-        .string()
-        .regex(/^\d+$/, "binding.gas must be a gas-unit integer string"),
+    deposit: integerString("binding.deposit"),
+    gas: integerString("binding.gas"),
 });
 export type ManifestBinding = z.infer<typeof manifestBindingSchema>;
 
@@ -122,7 +195,7 @@ export function manifestPlaceholders(
 export const manifestSchema = z
     .object({
         version: z.number().int().positive(),
-        id: nonBlankString("id"),
+        id: tagSafeId,
         title: nonBlankString("title"),
         description: z.string().optional(),
         icon: z.string().optional(),
@@ -145,6 +218,16 @@ export const manifestSchema = z
             message:
                 "args/summary reference a {{placeholder}} that no field declares",
             path: ["args"],
+        },
+    )
+    .refine(
+        (manifest) => {
+            const names = manifest.fields.map((field) => field.name);
+            return new Set(names).size === names.length;
+        },
+        {
+            message: "field `name`s must be unique within a manifest",
+            path: ["fields"],
         },
     );
 export type Manifest = z.infer<typeof manifestSchema>;

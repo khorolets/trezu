@@ -93,6 +93,61 @@ describe("parseManifest", () => {
         });
         expect(result.success).toBe(false);
     });
+
+    it("rejects a default that does not match the field type", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                {
+                    name: "amount",
+                    label: "Amount",
+                    type: "uint",
+                    default: "banana",
+                },
+            ],
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it("rejects a select field without options", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [{ name: "amount", label: "Amount", type: "select" }],
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it("rejects options on a non-select field", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                {
+                    name: "amount",
+                    label: "Amount",
+                    type: "text",
+                    options: ["a"],
+                },
+            ],
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it("rejects an id that is not a tag-safe slug", () => {
+        expect(parseManifest({ ...validManifest, id: "bad id]" }).success).toBe(
+            false,
+        );
+    });
+
+    it("rejects duplicate field names", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                { name: "amount", label: "Amount", type: "uint" },
+                { name: "amount", label: "Amount 2", type: "text" },
+            ],
+        });
+        expect(result.success).toBe(false);
+    });
 });
 
 describe("manifestErrorMessages", () => {
