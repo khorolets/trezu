@@ -110,9 +110,11 @@ function defaultMatchesType(field: ManifestFieldBase): boolean {
         case "bool":
             return typeof value === "boolean";
         case "select":
+            // `options` is not guaranteed here: zod runs every refine, so a `select` field
+            // missing `options` still reaches this branch even though `optionsMatchType` flagged
+            // it — dropping the guard would throw on `{ type: 'select', default: 'x' }`.
             return (
-                typeof value === "string" &&
-                (field.options?.includes(value) ?? false)
+                typeof value === "string" && (field.options ?? []).includes(value)
             );
         case "json":
             return true;
@@ -203,13 +205,13 @@ export const manifestSchema = z
         version: z.number().int().positive(),
         id: tagSafeId,
         title: nonBlankString("title"),
-        description: z.string().optional(),
-        icon: z.string().optional(),
+        description: nonBlankString("description").optional(),
+        icon: nonBlankString("icon").optional(),
         binding: manifestBindingSchema,
         fields: z.array(manifestFieldSchema),
         // `args` must be a plain object (z.record admits arrays in zod v4; z.object does not).
         args: z.object({}).catchall(z.unknown()),
-        summary: z.string().optional(),
+        summary: nonBlankString("summary").optional(),
     })
     .refine(
         (manifest) => placeholdersDeclared(manifest.fields, manifest.args),

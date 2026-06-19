@@ -86,12 +86,16 @@ describe("parseManifest", () => {
         ).toBe(false);
     });
 
-    it("rejects an args placeholder that no field declares", () => {
+    it("attributes a dangling args placeholder to `args`, not `summary`", () => {
         const result = parseManifest({
             ...validManifest,
             args: { amount: "{{missing}}" },
         });
         expect(result.success).toBe(false);
+        if (!result.success) {
+            const messages = manifestErrorMessages(result.error);
+            expect(messages.some((m) => m.startsWith("args:"))).toBe(true);
+        }
     });
 
     it("attributes a dangling summary placeholder to `summary`, not `args`", () => {
@@ -125,6 +129,16 @@ describe("parseManifest", () => {
         const result = parseManifest({
             ...validManifest,
             fields: [{ name: "amount", label: "Amount", type: "select" }],
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it("rejects (without crashing) a select field that has a default but no options", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                { name: "amount", label: "Amount", type: "select", default: "x" },
+            ],
         });
         expect(result.success).toBe(false);
     });
