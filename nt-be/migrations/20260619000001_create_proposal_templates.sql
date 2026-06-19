@@ -1,0 +1,35 @@
+-- Per-DAO custom proposal templates for the manifest-driven custom-proposal framework.
+-- A `manifest` is a JSON form definition: a techy member authors it, regular members fill
+-- the resulting form to file a generic SputnikDAO FunctionCall proposal. Storing manifests
+-- off-chain (mirroring `address_book`) is safe: a manifest only defines a *form*; the proposal
+-- it produces still passes the DAO's on-chain permissions and approvals.
+CREATE TABLE proposal_templates (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dao_id      VARCHAR(128) NOT NULL REFERENCES monitored_accounts(account_id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    description TEXT NULL,
+    manifest    JSONB NOT NULL,
+    enabled     BOOLEAN NOT NULL DEFAULT true,
+    created_by  UUID NULL REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- One template name per DAO (human-facing identifier in the template list).
+CREATE UNIQUE INDEX uq_proposal_templates_dao_name ON proposal_templates(dao_id, name);
+CREATE INDEX idx_proposal_templates_dao_id ON proposal_templates(dao_id);
+CREATE INDEX idx_proposal_templates_created_by ON proposal_templates(created_by);
+
+-- Auto-update updated_at (same pattern as the `daos` table).
+CREATE OR REPLACE FUNCTION update_proposal_templates_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER proposal_templates_updated_at
+    BEFORE UPDATE ON proposal_templates
+    FOR EACH ROW
+    EXECUTE FUNCTION update_proposal_templates_updated_at();
