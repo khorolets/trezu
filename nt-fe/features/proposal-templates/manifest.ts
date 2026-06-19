@@ -111,7 +111,8 @@ function defaultMatchesType(field: ManifestFieldBase): boolean {
         case "account":
         case "token":
         case "text":
-            return typeof value === "string";
+            // A provided default must be meaningful, not empty ("" == no default).
+            return typeof value === "string" && value.length > 0;
         case "uint":
         case "amount":
             return typeof value === "string" && INTEGER_RE.test(value);

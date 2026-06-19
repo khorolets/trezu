@@ -127,6 +127,22 @@ describe("parseManifest", () => {
             ],
         });
         expect(result.success).toBe(false);
+        if (!result.success) {
+            const messages = manifestErrorMessages(result.error);
+            expect(
+                messages.some((m) => m.startsWith("fields.0.default:")),
+            ).toBe(true);
+        }
+    });
+
+    it("rejects an empty-string default on a text field", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                { name: "amount", label: "Amount", type: "text", default: "" },
+            ],
+        });
+        expect(result.success).toBe(false);
     });
 
     it("rejects a select field without options", () => {
@@ -135,6 +151,12 @@ describe("parseManifest", () => {
             fields: [{ name: "amount", label: "Amount", type: "select" }],
         });
         expect(result.success).toBe(false);
+        if (!result.success) {
+            const messages = manifestErrorMessages(result.error);
+            expect(
+                messages.some((m) => m.startsWith("fields.0.options:")),
+            ).toBe(true);
+        }
     });
 
     it("rejects (without crashing) a select field that has a default but no options", () => {
@@ -165,6 +187,12 @@ describe("parseManifest", () => {
             ],
         });
         expect(result.success).toBe(false);
+        if (!result.success) {
+            const messages = manifestErrorMessages(result.error);
+            expect(
+                messages.some((m) => m.startsWith("fields.0.options:")),
+            ).toBe(true);
+        }
     });
 
     it("rejects an id that is not a tag-safe slug", () => {
