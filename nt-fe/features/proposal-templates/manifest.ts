@@ -52,6 +52,16 @@ const tagSafeId = z
         "id must be a tag-safe slug ([A-Za-z0-9_-]) so the [trezu-tmpl:<id>] tag stays parseable",
     );
 
+// Field names must match the {{placeholder}} charset, so every field is referenceable from args.
+const FIELD_NAME_RE = /^[a-zA-Z0-9_]+$/;
+const fieldName = z
+    .string()
+    .trim()
+    .regex(
+        FIELD_NAME_RE,
+        "field.name must be a {{placeholder}}-safe identifier ([A-Za-z0-9_])",
+    );
+
 /** Optional per-field constraints. min/max are digit strings to stay u128/BigInt-safe. */
 export const manifestFieldValidationSchema = z.object({
     min: integerString("validation.min").optional(),
@@ -60,12 +70,12 @@ export const manifestFieldValidationSchema = z.object({
 });
 
 const manifestFieldBase = z.object({
-    name: nonBlankString("field.name"),
+    name: fieldName,
     label: nonBlankString("field.label"),
     type: manifestFieldTypeSchema,
     required: z.boolean().optional(),
-    // zod v4: z.unknown() already admits `undefined`, so no `.optional()` needed. Its shape is
-    // tied to `type` by the refinements below, not left arbitrary.
+    // zod v4: z.unknown() accepts a missing key, so no `.optional()` is needed (the key may be
+    // omitted entirely); its shape is tied to `type` by the refinements below, not left arbitrary.
     default: z.unknown(),
     help: z.string().optional(),
     /** Choices for a `select` field (required there, forbidden elsewhere). */

@@ -173,6 +173,16 @@ describe("parseManifest", () => {
         );
     });
 
+    it("rejects a field name that is not a {{placeholder}}-safe identifier", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [{ name: "user-id", label: "User", type: "text" }],
+            args: {},
+            summary: "Static summary",
+        });
+        expect(result.success).toBe(false);
+    });
+
     it("rejects duplicate field names", () => {
         const result = parseManifest({
             ...validManifest,
