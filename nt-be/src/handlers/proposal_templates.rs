@@ -84,6 +84,9 @@ pub struct UpdateProposalTemplateRequest {
     /// A description can be cleared to an empty string (`""`) but, by design, not reset to
     /// NULL through this endpoint.
     pub description: Option<String>,
+    /// Omitted or `null` leaves the existing manifest unchanged (COALESCE semantics). The
+    /// manifest cannot be cleared through this endpoint — send the replacement shape instead
+    /// (the column is NOT NULL, so an absent manifest is never a valid stored state).
     pub manifest: Option<Value>,
     pub enabled: Option<bool>,
 }
