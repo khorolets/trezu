@@ -8,11 +8,13 @@
  *
  * It mirrors — and deliberately extends — the backend `validate_manifest` (nt-be
  * `handlers/proposal_templates.rs`): the backend enforces only the structural shape and stores a
- * normalized copy, while this validator additionally checks field types and that amount-like
- * strings are integers. A manifest that passes here therefore also passes the backend.
+ * normalized copy, while this validator additionally (a) checks each field's `type`, (b) requires
+ * the amount strings `binding.deposit`/`gas` and per-field `validation.min`/`max` to be digit
+ * strings, and (c) cross-checks that every `{{field}}` placeholder in `args`/`summary` is declared
+ * in `fields`. A manifest that passes here therefore also passes the backend.
  *
- * u128 safety: `deposit`/`gas` and the per-field `validation.min`/`max` are **strings**, never
- * `number`, so NEAR amounts (which exceed 2^53) survive untruncated.
+ * u128 safety: those amount strings are validated as digit strings, never `number`, so NEAR
+ * amounts (which exceed 2^53) survive untruncated.
  */
 import { z } from "zod";
 
@@ -35,10 +37,13 @@ export type ManifestFieldType = z.infer<typeof manifestFieldTypeSchema>;
 const nonBlankString = (label: string) =>
     z.string().trim().min(1, `${label} must not be blank`);
 
-/** Optional per-field constraints. min/max are strings to stay u128/BigInt-safe. */
+const integerString = (label: string) =>
+    z.string().regex(/^\d+$/, `${label} must be an integer string`);
+
+/** Optional per-field constraints. min/max are digit strings to stay u128/BigInt-safe. */
 export const manifestFieldValidationSchema = z.object({
-    min: z.string().optional(),
-    max: z.string().optional(),
+    min: integerString("validation.min").optional(),
+    max: integerString("validation.max").optional(),
     pattern: z.string().optional(),
 });
 
@@ -47,7 +52,8 @@ export const manifestFieldSchema = z.object({
     label: nonBlankString("field.label"),
     type: manifestFieldTypeSchema,
     required: z.boolean().optional(),
-    default: z.unknown().optional(),
+    // zod v4: z.unknown() already admits `undefined`, so no `.optional()` needed.
+    default: z.unknown(),
     help: z.string().optional(),
     /** Choices for a `select` field. */
     options: z.array(z.string()).optional(),
@@ -68,18 +74,79 @@ export const manifestBindingSchema = z.object({
 });
 export type ManifestBinding = z.infer<typeof manifestBindingSchema>;
 
-export const manifestSchema = z.object({
-    version: z.number().int().positive(),
-    id: nonBlankString("id"),
-    title: nonBlankString("title"),
-    description: z.string().optional(),
-    icon: z.string().optional(),
-    binding: manifestBindingSchema,
-    fields: z.array(manifestFieldSchema),
-    /** Args-mapping template the form engine interpolates field values into. */
-    args: z.record(z.string(), z.unknown()),
-    summary: z.string().optional(),
-});
+/**
+ * `{{field}}` placeholder pattern. The look-arounds skip escaped `{{{{literal}}}}` sequences so a
+ * literal `{{` is never mistaken for a placeholder.
+ */
+const PLACEHOLDER_RE = /(?<!\{)\{\{\s*([a-zA-Z0-9_]+)\s*\}\}(?!\})/g;
+
+function collectStrings(value: unknown, out: string[]): void {
+    if (typeof value === "string") {
+        out.push(value);
+        return;
+    }
+    if (Array.isArray(value)) {
+        for (const item of value) collectStrings(item, out);
+        return;
+    }
+    if (value !== null && typeof value === "object") {
+        for (const item of Object.values(value)) collectStrings(item, out);
+    }
+}
+
+/**
+ * Field names a manifest references via `{{name}}` in its `args` mapping and `summary`. Exported
+ * so the form engine interpolates against the exact same extraction this validator checks.
+ */
+export function manifestPlaceholders(
+    args: unknown,
+    summary?: string,
+): Set<string> {
+    const strings: string[] = [];
+    collectStrings(args, strings);
+    if (summary) {
+        strings.push(summary);
+    }
+    const names = new Set<string>();
+    for (const text of strings) {
+        for (const match of text.matchAll(PLACEHOLDER_RE)) {
+            const name = match[1];
+            if (name) {
+                names.add(name);
+            }
+        }
+    }
+    return names;
+}
+
+export const manifestSchema = z
+    .object({
+        version: z.number().int().positive(),
+        id: nonBlankString("id"),
+        title: nonBlankString("title"),
+        description: z.string().optional(),
+        icon: z.string().optional(),
+        binding: manifestBindingSchema,
+        fields: z.array(manifestFieldSchema),
+        // `args` must be a plain object (z.record admits arrays in zod v4; z.object does not).
+        args: z.object({}).catchall(z.unknown()),
+        summary: z.string().optional(),
+    })
+    .refine(
+        (manifest) => {
+            const declared = new Set(
+                manifest.fields.map((field) => field.name),
+            );
+            return [
+                ...manifestPlaceholders(manifest.args, manifest.summary),
+            ].every((placeholder) => declared.has(placeholder));
+        },
+        {
+            message:
+                "args/summary reference a {{placeholder}} that no field declares",
+            path: ["args"],
+        },
+    );
 export type Manifest = z.infer<typeof manifestSchema>;
 
 /** Validate an authored manifest (e.g. pasted JSON). Returns zod's safe-parse result. */

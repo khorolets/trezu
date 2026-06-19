@@ -63,6 +63,36 @@ describe("parseManifest", () => {
         });
         expect(result.success).toBe(false);
     });
+
+    it("rejects a non-integer validation.min on a field", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                {
+                    name: "amount",
+                    label: "Amount",
+                    type: "uint",
+                    validation: { min: "1.5" },
+                },
+            ],
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it("rejects args that is not an object", () => {
+        expect(
+            parseManifest({ ...validManifest, args: ["not", "a", "record"] })
+                .success,
+        ).toBe(false);
+    });
+
+    it("rejects an args/summary placeholder that no field declares", () => {
+        const result = parseManifest({
+            ...validManifest,
+            args: { amount: "{{missing}}" },
+        });
+        expect(result.success).toBe(false);
+    });
 });
 
 describe("manifestErrorMessages", () => {
