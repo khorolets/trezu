@@ -137,7 +137,12 @@ describe("parseManifest", () => {
         const result = parseManifest({
             ...validManifest,
             fields: [
-                { name: "amount", label: "Amount", type: "select", default: "x" },
+                {
+                    name: "amount",
+                    label: "Amount",
+                    type: "select",
+                    default: "x",
+                },
             ],
         });
         expect(result.success).toBe(false);
@@ -173,6 +178,75 @@ describe("parseManifest", () => {
             ],
         });
         expect(result.success).toBe(false);
+    });
+
+    it("rejects an unsupported manifest version", () => {
+        expect(parseManifest({ ...validManifest, version: 2 }).success).toBe(
+            false,
+        );
+    });
+
+    it("accepts a validation.pattern on a text field", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                {
+                    name: "amount",
+                    label: "Amount",
+                    type: "text",
+                    validation: { pattern: "^a" },
+                },
+            ],
+        });
+        expect(result.success).toBe(true);
+    });
+
+    it("rejects a validation.pattern on a non-text/number field", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                {
+                    name: "amount",
+                    label: "Amount",
+                    type: "uint",
+                    validation: { pattern: "^a" },
+                },
+            ],
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            const messages = manifestErrorMessages(result.error);
+            // The refine is on the field schema, so the path is rooted at the field index.
+            expect(
+                messages.some((m) =>
+                    m.startsWith("fields.0.validation.pattern:"),
+                ),
+            ).toBe(true);
+        }
+    });
+
+    it("accepts a type-appropriate default for each field type", () => {
+        const fields = [
+            { name: "amount", label: "Amount", type: "bool", default: true },
+            { name: "amount", label: "Amount", type: "number", default: 5 },
+            {
+                name: "amount",
+                label: "Amount",
+                type: "json",
+                default: { a: 1 },
+            },
+            {
+                name: "amount",
+                label: "Amount",
+                type: "select",
+                options: ["a", "b"],
+                default: "a",
+            },
+        ];
+        for (const field of fields) {
+            const result = parseManifest({ ...validManifest, fields: [field] });
+            expect(result.success).toBe(true);
+        }
     });
 });
 

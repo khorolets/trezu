@@ -114,7 +114,8 @@ function defaultMatchesType(field: ManifestFieldBase): boolean {
             // missing `options` still reaches this branch even though `optionsMatchType` flagged
             // it — dropping the guard would throw on `{ type: 'select', default: 'x' }`.
             return (
-                typeof value === "string" && (field.options ?? []).includes(value)
+                typeof value === "string" &&
+                (field.options ?? []).includes(value)
             );
         case "json":
             return true;
@@ -202,7 +203,8 @@ function placeholdersDeclared(
 
 export const manifestSchema = z
     .object({
-        version: z.number().int().positive(),
+        // v1 is the only shape this validator describes; a future version needs its own schema.
+        version: z.literal(1),
         id: tagSafeId,
         title: nonBlankString("title"),
         description: nonBlankString("description").optional(),
