@@ -92,53 +92,58 @@ fn default_enabled() -> bool {
     true
 }
 
-/// Minimal server-side manifest validation at the API boundary.
+/// Validate a manifest's structural shape and return a **normalized** copy with its known
+/// string fields (`id`, `title`, `binding.receiver_id`, `binding.method_name`) trimmed — the
+/// same trim-then-store treatment `name`/`description` get, so a padded `id` can't drift the
+/// `[trezu-tmpl:<id>]` tag or break downstream comparisons.
 ///
-/// Enforces only the structural shape so obvious garbage never reaches the database. Strict
-/// field-type / u128 / args-mapping validation is a deliberate follow-up — it must mirror the
-/// frontend validator, so it lands together with the form engine.
-fn validate_manifest(manifest: &Value) -> Result<(), String> {
+/// Only structural validation here; strict field-type / u128 / args-mapping checks are a
+/// deliberate follow-up that must mirror the frontend validator and lands with the form engine.
+fn validate_manifest(manifest: &Value) -> Result<Value, String> {
     let obj = manifest
         .as_object()
         .ok_or("manifest must be a JSON object")?;
 
-    let non_empty_str = |key: &str| {
-        obj.get(key)
+    // Shared by the validity check and the normalize-on-store step below.
+    fn trimmed(
+        container: &serde_json::Map<String, Value>,
+        key: &str,
+        path: &str,
+    ) -> Result<String, String> {
+        container
+            .get(key)
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|s| !s.is_empty())
-    };
+            .map(str::to_string)
+            .ok_or_else(|| format!("manifest.{path} must be a non-empty string"))
+    }
 
-    if non_empty_str("id").is_none() {
-        return Err("manifest.id must be a non-empty string".to_string());
-    }
-    if non_empty_str("title").is_none() {
-        return Err("manifest.title must be a non-empty string".to_string());
-    }
+    let id = trimmed(obj, "id", "id")?;
+    let title = trimmed(obj, "title", "title")?;
 
     let binding = obj
         .get("binding")
         .and_then(Value::as_object)
         .ok_or("manifest.binding must be an object")?;
-    let binding_str = |key: &str| {
-        binding
-            .get(key)
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-    };
-    if binding_str("receiver_id").is_none() {
-        return Err("manifest.binding.receiver_id must be a non-empty string".to_string());
-    }
-    if binding_str("method_name").is_none() {
-        return Err("manifest.binding.method_name must be a non-empty string".to_string());
-    }
+    let receiver_id = trimmed(binding, "receiver_id", "binding.receiver_id")?;
+    let method_name = trimmed(binding, "method_name", "binding.method_name")?;
 
     if !obj.get("fields").map(Value::is_array).unwrap_or(false) {
         return Err("manifest.fields must be an array".to_string());
     }
 
-    Ok(())
+    let mut normalized = manifest.clone();
+    let obj = normalized
+        .as_object_mut()
+        .expect("manifest was validated as an object above");
+    obj.insert("id".to_string(), Value::String(id));
+    obj.insert("title".to_string(), Value::String(title));
+    if let Some(binding) = obj.get_mut("binding").and_then(Value::as_object_mut) {
+        binding.insert("receiver_id".to_string(), Value::String(receiver_id));
+        binding.insert("method_name".to_string(), Value::String(method_name));
+    }
+    Ok(normalized)
 }
 
 fn internal_error(context: &str, e: impl std::fmt::Display) -> (StatusCode, String) {
@@ -147,10 +152,7 @@ fn internal_error(context: &str, e: impl std::fmt::Display) -> (StatusCode, Stri
 }
 
 fn forbidden() -> (StatusCode, String) {
-    (
-        StatusCode::FORBIDDEN,
-        "Not a DAO policy member".to_string(),
-    )
+    (StatusCode::FORBIDDEN, "Not a DAO policy member".to_string())
 }
 
 /// Re-fetch a full template (with creator wallet) after a mutation, scoped to the DAO.
@@ -223,13 +225,16 @@ pub async fn create_proposal_template(
         .await
         .map_err(|_| forbidden())?;
 
-    validate_manifest(&req.manifest).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let manifest = validate_manifest(&req.manifest).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     // Normalize name/description like the manifest's own strings, so whitespace variants
     // ("Recovery Mint" vs " Recovery Mint ") can't slip past the unique (dao_id, name) index.
     let name = req.name.trim().to_string();
     if name.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "name must not be empty".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "name must not be empty".to_string(),
+        ));
     }
     let description = req.description.as_deref().map(|d| d.trim().to_string());
 
@@ -250,7 +255,7 @@ pub async fn create_proposal_template(
         dao_id.as_str(),
         name,
         description,
-        req.manifest,
+        manifest,
         req.enabled,
         user_id
     )
@@ -275,8 +280,8 @@ pub async fn create_proposal_template(
         .map_err(|e| internal_error("Failed to load created template", e))?
         .ok_or_else(|| internal_error("Created template vanished", "not found"))?;
 
-    let template =
-        ProposalTemplate::try_from(row).map_err(|e| internal_error("Invalid account in template", e))?;
+    let template = ProposalTemplate::try_from(row)
+        .map_err(|e| internal_error("Invalid account in template", e))?;
 
     Ok((StatusCode::CREATED, Json(template)))
 }
@@ -292,15 +297,19 @@ pub async fn update_proposal_template(
         .await
         .map_err(|_| forbidden())?;
 
-    if let Some(manifest) = &req.manifest {
-        validate_manifest(manifest).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-    }
+    let manifest = match &req.manifest {
+        Some(m) => Some(validate_manifest(m).map_err(|e| (StatusCode::BAD_REQUEST, e))?),
+        None => None,
+    };
 
     // Normalize the same way create does, so a whitespace-padded rename collides with the
     // existing row instead of duplicating it. A name that is only whitespace is rejected.
     let name = match req.name.as_deref().map(str::trim) {
         Some("") => {
-            return Err((StatusCode::BAD_REQUEST, "name must not be empty".to_string()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "name must not be empty".to_string(),
+            ));
         }
         Some(trimmed) => Some(trimmed.to_string()),
         None => None,
@@ -322,7 +331,7 @@ pub async fn update_proposal_template(
         id,
         name,
         description,
-        req.manifest,
+        manifest,
         req.enabled,
     )
     .fetch_optional(&state.db_pool)
@@ -350,8 +359,8 @@ pub async fn update_proposal_template(
         .map_err(|e| internal_error("Failed to load updated template", e))?
         .ok_or_else(|| internal_error("Updated template vanished", "not found"))?;
 
-    let template =
-        ProposalTemplate::try_from(row).map_err(|e| internal_error("Invalid account in template", e))?;
+    let template = ProposalTemplate::try_from(row)
+        .map_err(|e| internal_error("Invalid account in template", e))?;
 
     Ok(Json(template))
 }
@@ -635,6 +644,15 @@ mod tests {
             valid_manifest(),
             "omitted manifest must be preserved, not overwritten"
         );
+        // The BEFORE UPDATE trigger must bump updated_at while leaving created_at fixed.
+        assert_eq!(
+            updated["createdAt"], created["createdAt"],
+            "created_at must not change on update"
+        );
+        assert_ne!(
+            updated["updatedAt"], created["updatedAt"],
+            "updated_at must advance on update (BEFORE UPDATE trigger must be load-bearing)"
+        );
 
         // UPDATE setting description explicitly -> round-trips through UPDATE,
         // and leaves the other (omitted) fields untouched.
@@ -740,6 +758,41 @@ mod tests {
                 "{method} must be forbidden for a non-member"
             );
         }
+    }
+
+    #[sqlx::test]
+    async fn test_manifest_strings_are_normalized_on_store(pool: PgPool) {
+        let state = test_state(pool.clone());
+        let app = create_routes(state.clone());
+        let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
+
+        seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
+        let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
+
+        let padded = json!({
+            "version": 1,
+            "id": "  ni-recovery-mint  ",
+            "title": "  Recovery Mint  ",
+            "binding": { "receiver_id": "  omft.near  ", "method_name": "  ft_deposit  " },
+            "fields": [],
+            "args": {}
+        });
+        let (status, body) = send(
+            app,
+            "POST",
+            base,
+            &cookie,
+            Some(json!({ "name": "Padded", "manifest": padded })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED, "create should succeed: {body}");
+
+        let created: Value = serde_json::from_str(&body).unwrap();
+        let m = &created["manifest"];
+        assert_eq!(m["id"].as_str(), Some("ni-recovery-mint"));
+        assert_eq!(m["title"].as_str(), Some("Recovery Mint"));
+        assert_eq!(m["binding"]["receiver_id"].as_str(), Some("omft.near"));
+        assert_eq!(m["binding"]["method_name"].as_str(), Some("ft_deposit"));
     }
 
     #[test]

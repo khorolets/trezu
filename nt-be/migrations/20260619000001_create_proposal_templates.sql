@@ -15,9 +15,10 @@ CREATE TABLE proposal_templates (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- One template name per DAO (human-facing identifier in the template list).
+-- One template name per DAO (human-facing identifier in the template list). Its leading
+-- column also serves equality lookups on dao_id, so no separate dao_id index is needed.
 CREATE UNIQUE INDEX uq_proposal_templates_dao_name ON proposal_templates(dao_id, name);
-CREATE INDEX idx_proposal_templates_dao_id ON proposal_templates(dao_id);
+-- Indexed for FK-delete performance (ON DELETE SET NULL when a user is removed).
 CREATE INDEX idx_proposal_templates_created_by ON proposal_templates(created_by);
 
 -- Auto-update updated_at (same pattern as the `daos` table).
