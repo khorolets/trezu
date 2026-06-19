@@ -80,9 +80,9 @@ pub struct CreateProposalTemplateRequest {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateProposalTemplateRequest {
     pub name: Option<String>,
-    /// Omitted or `null` leaves the existing description unchanged (COALESCE semantics).
-    /// A description can be cleared to an empty string (`""`) but, by design, not reset to
-    /// NULL through this endpoint.
+    /// Omitted or `null` leaves the existing description unchanged (COALESCE semantics). A
+    /// provided value must be non-blank (trimmed, like `name`): a whitespace-only string is
+    /// rejected rather than silently stored as `""`. There is no clear-to-empty here.
     pub description: Option<String>,
     /// Omitted or `null` leaves the existing manifest unchanged (COALESCE semantics). The
     /// manifest cannot be cleared through this endpoint — send the replacement shape instead
@@ -142,16 +142,34 @@ fn validate_manifest(manifest: &Value) -> Result<Value, String> {
         .expect("manifest was validated as an object above");
     obj.insert("id".to_string(), Value::String(id));
     obj.insert("title".to_string(), Value::String(title));
-    if let Some(binding) = obj.get_mut("binding").and_then(Value::as_object_mut) {
-        binding.insert("receiver_id".to_string(), Value::String(receiver_id));
-        binding.insert("method_name".to_string(), Value::String(method_name));
-    }
+    let binding = obj
+        .get_mut("binding")
+        .and_then(Value::as_object_mut)
+        .expect("binding was validated as an object above");
+    binding.insert("receiver_id".to_string(), Value::String(receiver_id));
+    binding.insert("method_name".to_string(), Value::String(method_name));
     Ok(normalized)
 }
 
 fn internal_error(context: &str, e: impl std::fmt::Display) -> (StatusCode, String) {
     log::error!("{context}: {e}");
     (StatusCode::INTERNAL_SERVER_ERROR, context.to_string())
+}
+
+/// Trim an optional request string and reject a blank value (`""` or whitespace-only) so a
+/// blank can never be silently stored as `""`. `None` (omitted / null) passes through unchanged.
+fn trim_optional(
+    value: Option<String>,
+    field: &str,
+) -> Result<Option<String>, (StatusCode, String)> {
+    match value.as_deref().map(str::trim) {
+        Some("") => Err((
+            StatusCode::BAD_REQUEST,
+            format!("{field} must not be blank"),
+        )),
+        Some(trimmed) => Ok(Some(trimmed.to_string())),
+        None => Ok(None),
+    }
 }
 
 /// Re-fetch a full template (with creator wallet) after a mutation, scoped to the DAO.
@@ -230,10 +248,10 @@ pub async fn create_proposal_template(
     if name.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            "name must not be empty".to_string(),
+            "name must not be blank".to_string(),
         ));
     }
-    let description = req.description.as_deref().map(|d| d.trim().to_string());
+    let description = trim_optional(req.description, "description")?;
 
     let user_id = sqlx::query_scalar!(
         "SELECT id FROM users WHERE account_id = $1",
@@ -242,6 +260,18 @@ pub async fn create_proposal_template(
     .fetch_optional(&state.db_pool)
     .await
     .map_err(|e| internal_error("Failed to look up user", e))?;
+    if user_id.is_none() {
+        // A valid session implies a users row (FK); a missing one is server corruption, not a
+        // reason to silently drop the created_by attribution.
+        log::error!(
+            "Authenticated user {} has no profile row; refusing to store a NULL created_by",
+            auth_user.account_id
+        );
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Authenticated user has no profile".to_string(),
+        ));
+    }
 
     let id: Uuid = sqlx::query_scalar!(
         r#"
@@ -299,18 +329,9 @@ pub async fn update_proposal_template(
     };
 
     // Normalize the same way create does, so a whitespace-padded rename collides with the
-    // existing row instead of duplicating it. A name that is only whitespace is rejected.
-    let name = match req.name.as_deref().map(str::trim) {
-        Some("") => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "name must not be empty".to_string(),
-            ));
-        }
-        Some(trimmed) => Some(trimmed.to_string()),
-        None => None,
-    };
-    let description = req.description.as_deref().map(|d| d.trim().to_string());
+    // existing row instead of duplicating it. A blank name/description is rejected, not stored.
+    let name = trim_optional(req.name, "name")?;
+    let description = trim_optional(req.description, "description")?;
 
     // COALESCE keeps existing values for any field omitted from the request.
     let updated = sqlx::query_scalar!(
@@ -580,6 +601,19 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
 
+        // CREATE with a whitespace-only description -> 400 (not silently stored as "")
+        let (status, _) = send(
+            app.clone(),
+            "POST",
+            base.clone(),
+            &cookie,
+            Some(
+                json!({ "name": "Blank Desc", "description": "   ", "manifest": valid_manifest() }),
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+
         // CREATE a second template (target for the rename-collision check below)
         let (status, _) = send(
             app.clone(),
@@ -671,6 +705,17 @@ mod tests {
             Some("Recovery Mint v2"),
             "name must be preserved when only description is updated"
         );
+
+        // UPDATE with a whitespace-only description -> 400
+        let (status, _) = send(
+            app.clone(),
+            "PUT",
+            item.clone(),
+            &cookie,
+            Some(json!({ "description": "   " })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
 
         // UPDATE with a structurally-invalid manifest -> 400
         let (status, _) = send(
