@@ -584,6 +584,35 @@ mod tests {
         let updated: Value = serde_json::from_str(&body).unwrap();
         assert_eq!(updated["name"].as_str(), Some("Recovery Mint v2"));
         assert_eq!(updated["enabled"].as_bool(), Some(false));
+        // Fields omitted from the body must be preserved (COALESCE), not cleared/overwritten.
+        assert!(
+            updated["description"].is_null(),
+            "omitted description must stay null, not be cleared to ''"
+        );
+        assert_eq!(
+            updated["manifest"],
+            valid_manifest(),
+            "omitted manifest must be preserved, not overwritten"
+        );
+
+        // UPDATE setting description explicitly -> round-trips through UPDATE,
+        // and leaves the other (omitted) fields untouched.
+        let (status, body) = send(
+            app.clone(),
+            "PUT",
+            item.clone(),
+            &cookie,
+            Some(json!({ "description": "new desc" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let updated: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(updated["description"].as_str(), Some("new desc"));
+        assert_eq!(
+            updated["name"].as_str(),
+            Some("Recovery Mint v2"),
+            "name must be preserved when only description is updated"
+        );
 
         // UPDATE with a structurally-invalid manifest -> 400
         let (status, _) = send(
