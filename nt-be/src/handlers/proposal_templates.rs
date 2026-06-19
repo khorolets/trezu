@@ -80,6 +80,9 @@ pub struct CreateProposalTemplateRequest {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateProposalTemplateRequest {
     pub name: Option<String>,
+    /// Omitted or `null` leaves the existing description unchanged (COALESCE semantics).
+    /// A description can be cleared to an empty string (`""`) but, by design, not reset to
+    /// NULL through this endpoint.
     pub description: Option<String>,
     pub manifest: Option<Value>,
     pub enabled: Option<bool>,
@@ -89,11 +92,11 @@ fn default_enabled() -> bool {
     true
 }
 
-/// Minimal server-side manifest validation at the API boundary (DESIGN §3.4).
+/// Minimal server-side manifest validation at the API boundary.
 ///
-/// PR1 enforces the structural shape so obvious garbage never reaches the database. Strict
+/// Enforces only the structural shape so obvious garbage never reaches the database. Strict
 /// field-type / u128 / args-mapping validation is a deliberate follow-up — it must mirror the
-/// frontend zod validator, so it lands with the form engine.
+/// frontend validator, so it lands together with the form engine.
 fn validate_manifest(manifest: &Value) -> Result<(), String> {
     let obj = manifest
         .as_object()
@@ -468,170 +471,223 @@ mod tests {
         .expect("utf-8 body")
     }
 
+    /// Send one request through the router and return (status, body text).
+    async fn send(
+        app: axum::Router,
+        method: &str,
+        uri: String,
+        cookie: &str,
+        body: Option<serde_json::Value>,
+    ) -> (StatusCode, String) {
+        let mut builder = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("cookie", cookie);
+        let body = match body {
+            Some(v) => {
+                builder = builder.header("content-type", "application/json");
+                Body::from(v.to_string())
+            }
+            None => Body::empty(),
+        };
+        let resp = app.oneshot(builder.body(body).unwrap()).await.unwrap();
+        let status = resp.status();
+        (status, response_text(resp).await)
+    }
+
     #[sqlx::test]
     async fn test_proposal_template_crud(pool: PgPool) {
         let state = test_state(pool.clone());
         let app = create_routes(state.clone());
 
+        let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
         seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
         // CREATE
-        let create = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri(format!("/api/treasury/{DAO_ID}/proposal-templates"))
-                    .header("content-type", "application/json")
-                    .header("cookie", &cookie)
-                    .body(Body::from(
-                        json!({ "name": "Recovery Mint", "manifest": valid_manifest() }).to_string(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let status = create.status();
-        let body = response_text(create).await;
+        let (status, body) = send(
+            app.clone(),
+            "POST",
+            base.clone(),
+            &cookie,
+            Some(json!({ "name": "Recovery Mint", "manifest": valid_manifest() })),
+        )
+        .await;
         assert_eq!(status, StatusCode::CREATED, "create should succeed: {body}");
         let created: Value = serde_json::from_str(&body).unwrap();
         let id = created["id"].as_str().unwrap().to_string();
         assert_eq!(created["createdBy"].as_str(), Some(USER_ACCOUNT_ID));
         assert_eq!(created["enabled"].as_bool(), Some(true));
+        assert_eq!(
+            created["manifest"],
+            valid_manifest(),
+            "manifest should round-trip through JSONB unchanged"
+        );
 
         // CREATE duplicate name -> 409
-        let dup = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri(format!("/api/treasury/{DAO_ID}/proposal-templates"))
-                    .header("content-type", "application/json")
-                    .header("cookie", &cookie)
-                    .body(Body::from(
-                        json!({ "name": "Recovery Mint", "manifest": valid_manifest() }).to_string(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(dup.status(), StatusCode::CONFLICT);
+        let (status, _) = send(
+            app.clone(),
+            "POST",
+            base.clone(),
+            &cookie,
+            Some(json!({ "name": "Recovery Mint", "manifest": valid_manifest() })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
 
         // CREATE invalid manifest -> 400
-        let bad = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri(format!("/api/treasury/{DAO_ID}/proposal-templates"))
-                    .header("content-type", "application/json")
-                    .header("cookie", &cookie)
-                    .body(Body::from(
-                        json!({ "name": "Bad", "manifest": { "id": "" } }).to_string(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(bad.status(), StatusCode::BAD_REQUEST);
+        let (status, _) = send(
+            app.clone(),
+            "POST",
+            base.clone(),
+            &cookie,
+            Some(json!({ "name": "Bad", "manifest": { "id": "" } })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
 
-        // LIST
-        let list = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri(format!("/api/treasury/{DAO_ID}/proposal-templates"))
-                    .header("cookie", &cookie)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(list.status(), StatusCode::OK);
-        let listed: Value = serde_json::from_str(&response_text(list).await).unwrap();
-        assert_eq!(listed.as_array().unwrap().len(), 1);
+        // CREATE a second template (target for the rename-collision check below)
+        let (status, _) = send(
+            app.clone(),
+            "POST",
+            base.clone(),
+            &cookie,
+            Some(json!({ "name": "Other Template", "manifest": valid_manifest() })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
 
-        // UPDATE (disable + rename)
-        let update = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("PUT")
-                    .uri(format!("/api/treasury/{DAO_ID}/proposal-templates/{id}"))
-                    .header("content-type", "application/json")
-                    .header("cookie", &cookie)
-                    .body(Body::from(
-                        json!({ "name": "Recovery Mint v2", "enabled": false }).to_string(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(update.status(), StatusCode::OK);
-        let updated: Value = serde_json::from_str(&response_text(update).await).unwrap();
+        // LIST -> two templates
+        let (status, body) = send(app.clone(), "GET", base.clone(), &cookie, None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            serde_json::from_str::<Value>(&body)
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+
+        let item = format!("{base}/{id}");
+
+        // UPDATE happy path (rename + disable)
+        let (status, body) = send(
+            app.clone(),
+            "PUT",
+            item.clone(),
+            &cookie,
+            Some(json!({ "name": "Recovery Mint v2", "enabled": false })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let updated: Value = serde_json::from_str(&body).unwrap();
         assert_eq!(updated["name"].as_str(), Some("Recovery Mint v2"));
         assert_eq!(updated["enabled"].as_bool(), Some(false));
 
-        // DELETE
-        let delete = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("DELETE")
-                    .uri(format!("/api/treasury/{DAO_ID}/proposal-templates/{id}"))
-                    .header("cookie", &cookie)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(delete.status(), StatusCode::NO_CONTENT);
+        // UPDATE with a structurally-invalid manifest -> 400
+        let (status, _) = send(
+            app.clone(),
+            "PUT",
+            item.clone(),
+            &cookie,
+            Some(json!({ "manifest": { "id": "" } })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
 
-        // LIST is empty again
-        let final_list = app
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri(format!("/api/treasury/{DAO_ID}/proposal-templates"))
-                    .header("cookie", &cookie)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let final_listed: Value =
-            serde_json::from_str(&response_text(final_list).await).unwrap();
-        assert!(final_listed.as_array().unwrap().is_empty());
+        // UPDATE renaming onto an existing template's name -> 409
+        let (status, _) = send(
+            app.clone(),
+            "PUT",
+            item.clone(),
+            &cookie,
+            Some(json!({ "name": "Other Template" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+
+        // UPDATE a non-existent id -> 404
+        let (status, _) = send(
+            app.clone(),
+            "PUT",
+            format!("{base}/{}", Uuid::new_v4()),
+            &cookie,
+            Some(json!({ "enabled": true })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        // DELETE -> 204
+        let (status, _) = send(app.clone(), "DELETE", item.clone(), &cookie, None).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        // DELETE again (already gone) -> 404
+        let (status, _) = send(app.clone(), "DELETE", item.clone(), &cookie, None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+
+        // LIST -> only the second template remains
+        let (_, body) = send(app.clone(), "GET", base.clone(), &cookie, None).await;
+        let remaining: Value = serde_json::from_str(&body).unwrap();
+        let remaining = remaining.as_array().unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0]["name"].as_str(), Some("Other Template"));
     }
 
     #[sqlx::test]
     async fn test_non_member_is_forbidden(pool: PgPool) {
         let state = test_state(pool.clone());
         let app = create_routes(state.clone());
+        let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
 
-        // DAO exists but the user is not a policy member.
-        sqlx::query!(
-            "INSERT INTO monitored_accounts (account_id) VALUES ($1) ON CONFLICT DO NOTHING",
-            DAO_ID,
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+        // The DAO is fully onboarded (monitored + present in `daos`) and HAS a policy member
+        // — just not our caller. So a 403 reflects a genuine non-member, not an unknown DAO.
+        seed_policy_member(&pool, DAO_ID, "someone-else.near").await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
-        let resp = app
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri(format!("/api/treasury/{DAO_ID}/proposal-templates"))
-                    .header("cookie", &cookie)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        let item = format!("{base}/{}", Uuid::new_v4());
+
+        // Every endpoint must reject a non-member before doing anything else.
+        let cases: [(&str, String, Option<Value>); 4] = [
+            ("GET", base.clone(), None),
+            (
+                "POST",
+                base.clone(),
+                Some(json!({ "name": "x", "manifest": valid_manifest() })),
+            ),
+            ("PUT", item.clone(), Some(json!({ "enabled": true }))),
+            ("DELETE", item.clone(), None),
+        ];
+        for (method, uri, body) in cases {
+            let (status, _) = send(app.clone(), method, uri, &cookie, body).await;
+            assert_eq!(
+                status,
+                StatusCode::FORBIDDEN,
+                "{method} must be forbidden for a non-member"
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_manifest_rejects_malformed_shapes() {
+        assert!(super::validate_manifest(&valid_manifest()).is_ok());
+
+        let binding = json!({ "receiver_id": "a.near", "method_name": "m" });
+        let rejected = [
+            json!("not an object"),
+            json!({ "id": "", "title": "t", "binding": binding.clone(), "fields": [] }),
+            json!({ "id": "x", "title": "", "binding": binding.clone(), "fields": [] }),
+            json!({ "id": "x", "title": "t", "fields": [] }), // missing binding
+            json!({ "id": "x", "title": "t", "binding": { "method_name": "m" }, "fields": [] }),
+            json!({ "id": "x", "title": "t", "binding": { "receiver_id": "a.near" }, "fields": [] }),
+            json!({ "id": "x", "title": "t", "binding": binding.clone() }), // missing fields
+            json!({ "id": "x", "title": "t", "binding": binding.clone(), "fields": {} }), // fields not array
+        ];
+        for case in rejected {
+            assert!(
+                super::validate_manifest(&case).is_err(),
+                "should reject manifest: {case}"
+            );
+        }
     }
 }
