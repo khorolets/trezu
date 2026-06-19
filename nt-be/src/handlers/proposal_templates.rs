@@ -154,10 +154,6 @@ fn internal_error(context: &str, e: impl std::fmt::Display) -> (StatusCode, Stri
     (StatusCode::INTERNAL_SERVER_ERROR, context.to_string())
 }
 
-fn forbidden() -> (StatusCode, String) {
-    (StatusCode::FORBIDDEN, "Not a DAO policy member".to_string())
-}
-
 /// Re-fetch a full template (with creator wallet) after a mutation, scoped to the DAO.
 async fn fetch_template_by_id(
     pool: &PgPool,
@@ -188,9 +184,8 @@ pub async fn list_proposal_templates(
     Path(dao_id): Path<AccountId>,
 ) -> Result<Json<Vec<ProposalTemplate>>, (StatusCode, String)> {
     auth_user
-        .verify_dao_member(&state.db_pool, &dao_id)
-        .await
-        .map_err(|_| forbidden())?;
+        .verify_dao_member_for_http(&state.db_pool, &dao_id)
+        .await?;
 
     let templates: Vec<ProposalTemplate> = sqlx::query_as!(
         ProposalTemplateRow,
@@ -224,9 +219,8 @@ pub async fn create_proposal_template(
     Json(req): Json<CreateProposalTemplateRequest>,
 ) -> Result<(StatusCode, Json<ProposalTemplate>), (StatusCode, String)> {
     auth_user
-        .verify_dao_member(&state.db_pool, &dao_id)
-        .await
-        .map_err(|_| forbidden())?;
+        .verify_dao_member_for_http(&state.db_pool, &dao_id)
+        .await?;
 
     let manifest = validate_manifest(&req.manifest).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
@@ -296,9 +290,8 @@ pub async fn update_proposal_template(
     Json(req): Json<UpdateProposalTemplateRequest>,
 ) -> Result<Json<ProposalTemplate>, (StatusCode, String)> {
     auth_user
-        .verify_dao_member(&state.db_pool, &dao_id)
-        .await
-        .map_err(|_| forbidden())?;
+        .verify_dao_member_for_http(&state.db_pool, &dao_id)
+        .await?;
 
     let manifest = match &req.manifest {
         Some(m) => Some(validate_manifest(m).map_err(|e| (StatusCode::BAD_REQUEST, e))?),
@@ -374,9 +367,8 @@ pub async fn delete_proposal_template(
     Path((dao_id, id)): Path<(AccountId, Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     auth_user
-        .verify_dao_member(&state.db_pool, &dao_id)
-        .await
-        .map_err(|_| forbidden())?;
+        .verify_dao_member_for_http(&state.db_pool, &dao_id)
+        .await?;
 
     let result = sqlx::query!(
         "DELETE FROM proposal_templates WHERE dao_id = $1 AND id = $2",
@@ -796,6 +788,26 @@ mod tests {
         assert_eq!(m["title"].as_str(), Some("Recovery Mint"));
         assert_eq!(m["binding"]["receiver_id"].as_str(), Some("omft.near"));
         assert_eq!(m["binding"]["method_name"].as_str(), Some("ft_deposit"));
+    }
+
+    #[sqlx::test]
+    async fn test_db_error_during_membership_check_is_500_not_403(pool: PgPool) {
+        let state = test_state(pool.clone());
+        let app = create_routes(state.clone());
+        let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
+
+        seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
+        let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
+
+        // Break the membership lookup at the DB layer. A DB failure must surface as 500, not be
+        // collapsed into a misleading 403 (the bug behind verify_dao_member_for_http).
+        sqlx::query("DROP TABLE dao_members CASCADE")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let (status, _) = send(app, "GET", base, &cookie, None).await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
