@@ -225,6 +225,14 @@ pub async fn create_proposal_template(
 
     validate_manifest(&req.manifest).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
+    // Normalize name/description like the manifest's own strings, so whitespace variants
+    // ("Recovery Mint" vs " Recovery Mint ") can't slip past the unique (dao_id, name) index.
+    let name = req.name.trim().to_string();
+    if name.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "name must not be empty".to_string()));
+    }
+    let description = req.description.as_deref().map(|d| d.trim().to_string());
+
     let user_id = sqlx::query_scalar!(
         "SELECT id FROM users WHERE account_id = $1",
         auth_user.account_id.as_str()
@@ -240,8 +248,8 @@ pub async fn create_proposal_template(
         RETURNING id
         "#,
         dao_id.as_str(),
-        req.name,
-        req.description,
+        name,
+        description,
         req.manifest,
         req.enabled,
         user_id
@@ -288,6 +296,17 @@ pub async fn update_proposal_template(
         validate_manifest(manifest).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     }
 
+    // Normalize the same way create does, so a whitespace-padded rename collides with the
+    // existing row instead of duplicating it. A name that is only whitespace is rejected.
+    let name = match req.name.as_deref().map(str::trim) {
+        Some("") => {
+            return Err((StatusCode::BAD_REQUEST, "name must not be empty".to_string()));
+        }
+        Some(trimmed) => Some(trimmed.to_string()),
+        None => None,
+    };
+    let description = req.description.as_deref().map(|d| d.trim().to_string());
+
     // COALESCE keeps existing values for any field omitted from the request.
     let updated = sqlx::query_scalar!(
         r#"
@@ -301,8 +320,8 @@ pub async fn update_proposal_template(
         "#,
         dao_id.as_str(),
         id,
-        req.name,
-        req.description,
+        name,
+        description,
         req.manifest,
         req.enabled,
     )
@@ -546,6 +565,17 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
 
+        // CREATE with a whitespace-only name -> 400
+        let (status, _) = send(
+            app.clone(),
+            "POST",
+            base.clone(),
+            &cookie,
+            Some(json!({ "name": "   ", "manifest": valid_manifest() })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+
         // CREATE a second template (target for the rename-collision check below)
         let (status, _) = send(
             app.clone(),
@@ -556,6 +586,17 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::CREATED);
+
+        // A whitespace-padded duplicate of an existing name must collide, not create a twin.
+        let (status, _) = send(
+            app.clone(),
+            "POST",
+            base.clone(),
+            &cookie,
+            Some(json!({ "name": "  Other Template  ", "manifest": valid_manifest() })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CONFLICT);
 
         // LIST -> two templates
         let (status, body) = send(app.clone(), "GET", base.clone(), &cookie, None).await;
@@ -602,12 +643,16 @@ mod tests {
             "PUT",
             item.clone(),
             &cookie,
-            Some(json!({ "description": "new desc" })),
+            Some(json!({ "description": "  new desc  " })),
         )
         .await;
         assert_eq!(status, StatusCode::OK);
         let updated: Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(updated["description"].as_str(), Some("new desc"));
+        assert_eq!(
+            updated["description"].as_str(),
+            Some("new desc"),
+            "description should be trimmed on update"
+        );
         assert_eq!(
             updated["name"].as_str(),
             Some("Recovery Mint v2"),
