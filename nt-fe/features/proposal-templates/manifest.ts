@@ -168,18 +168,13 @@ function collectStrings(value: unknown, out: string[]): void {
 }
 
 /**
- * Field names a manifest references via `{{name}}` in its `args` mapping and `summary`. Exported
- * so the form engine interpolates against the exact same extraction this validator checks.
+ * Field names referenced via `{{name}}` anywhere in `value` — a manifest's `args` object or its
+ * `summary` string. Exported so the form engine interpolates against the exact same extraction
+ * this validator checks. Called per source so a dangling token is attributable to args vs summary.
  */
-export function manifestPlaceholders(
-    args: unknown,
-    summary?: string,
-): Set<string> {
+export function manifestPlaceholders(value: unknown): Set<string> {
     const strings: string[] = [];
-    collectStrings(args, strings);
-    if (summary) {
-        strings.push(summary);
-    }
+    collectStrings(value, strings);
     const names = new Set<string>();
     for (const text of strings) {
         for (const match of text.matchAll(PLACEHOLDER_RE)) {
@@ -190,6 +185,17 @@ export function manifestPlaceholders(
         }
     }
     return names;
+}
+
+/** Whether every `{{placeholder}}` in `source` is declared as a field `name`. */
+function placeholdersDeclared(
+    fields: ReadonlyArray<{ name: string }>,
+    source: unknown,
+): boolean {
+    const declared = new Set(fields.map((field) => field.name));
+    return [...manifestPlaceholders(source)].every((name) =>
+        declared.has(name),
+    );
 }
 
 export const manifestSchema = z
@@ -206,18 +212,19 @@ export const manifestSchema = z
         summary: z.string().optional(),
     })
     .refine(
-        (manifest) => {
-            const declared = new Set(
-                manifest.fields.map((field) => field.name),
-            );
-            return [
-                ...manifestPlaceholders(manifest.args, manifest.summary),
-            ].every((placeholder) => declared.has(placeholder));
-        },
+        (manifest) => placeholdersDeclared(manifest.fields, manifest.args),
         {
             message:
-                "args/summary reference a {{placeholder}} that no field declares",
+                "`args` references a {{placeholder}} that no field declares",
             path: ["args"],
+        },
+    )
+    .refine(
+        (manifest) => placeholdersDeclared(manifest.fields, manifest.summary),
+        {
+            message:
+                "`summary` references a {{placeholder}} that no field declares",
+            path: ["summary"],
         },
     )
     .refine(

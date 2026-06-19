@@ -86,12 +86,24 @@ describe("parseManifest", () => {
         ).toBe(false);
     });
 
-    it("rejects an args/summary placeholder that no field declares", () => {
+    it("rejects an args placeholder that no field declares", () => {
         const result = parseManifest({
             ...validManifest,
             args: { amount: "{{missing}}" },
         });
         expect(result.success).toBe(false);
+    });
+
+    it("attributes a dangling summary placeholder to `summary`, not `args`", () => {
+        const result = parseManifest({
+            ...validManifest,
+            summary: "Mint {{amount}} to {{missing}}",
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            const messages = manifestErrorMessages(result.error);
+            expect(messages.some((m) => m.startsWith("summary:"))).toBe(true);
+        }
     });
 
     it("rejects a default that does not match the field type", () => {
