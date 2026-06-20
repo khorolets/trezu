@@ -12,6 +12,8 @@ import {
     PAGE_TOUR_SELECTORS,
     useGuestSaveTour,
 } from "@/features/onboarding/steps/page-tours";
+import { useProposalTemplates } from "@/features/proposal-templates/hooks/use-proposal-templates";
+import { manifestIdOf } from "@/features/proposal-templates/manifest";
 import { useProposals } from "@/hooks/use-proposals";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useTreasury } from "@/hooks/use-treasury";
@@ -193,10 +195,16 @@ export function Sidebar({ onClose }: SidebarProps) {
         }),
     });
     const { data: subscription } = useSubscription(treasuryId);
+    const { data: proposalTemplates } = useProposalTemplates();
 
     const { isMobile, mounted, isSidebarOpen: isOpen } = useResponsiveSidebar();
 
     const isReduced = !isMobile && !isOpen;
+    const showLabels = isMobile ? isOpen : !isReduced;
+    // Enabled templates with a resolvable slug — rendered as the "Custom" sidebar section.
+    const customTemplates = (proposalTemplates ?? []).filter(
+        (template) => template.enabled && manifestIdOf(template.manifest),
+    );
     const saveTreasuryMutation = useSaveTreasuryMutation(accountId, treasuryId);
     useGuestSaveTour(accountId ?? undefined, isSaved ?? false);
 
@@ -322,7 +330,6 @@ export function Sidebar({ onClose }: SidebarProps) {
                         const showBadge =
                             link.path === "requests" &&
                             (proposals?.total ?? 0) > 0;
-                        const showLabels = isMobile ? isOpen : !isReduced;
 
                         return (
                             <NavLink
@@ -345,6 +352,49 @@ export function Sidebar({ onClose }: SidebarProps) {
                             />
                         );
                     })}
+
+                    {customTemplates.length > 0 && (
+                        <div className="mt-2 flex flex-col gap-1">
+                            {showLabels && (
+                                <div className="flex items-center justify-between px-3 pt-2">
+                                    <p className="font-medium text-muted-foreground text-xs">
+                                        Custom
+                                    </p>
+                                    <Button
+                                        variant="link"
+                                        size="icon-sm"
+                                        tooltipContent="About custom templates"
+                                        side="right"
+                                        onClick={() => {
+                                            router.push(
+                                                `/${treasuryId}/custom-templates/about`,
+                                            );
+                                            if (isMobile) onClose();
+                                        }}
+                                        className="text-muted-foreground hover:text-foreground"
+                                    >
+                                        <MessageCircleQuestion className="size-4" />
+                                    </Button>
+                                </div>
+                            )}
+                            {customTemplates.map((template) => {
+                                const href = `/${treasuryId}/custom-templates/${manifestIdOf(template.manifest)}`;
+                                return (
+                                    <NavLink
+                                        key={template.id}
+                                        isActive={pathname === href}
+                                        icon={Bookmark}
+                                        label={template.name}
+                                        showLabels={showLabels}
+                                        onClick={() => {
+                                            router.push(href);
+                                            if (isMobile) onClose();
+                                        }}
+                                    />
+                                );
+                            })}
+                        </div>
+                    )}
                 </nav>
 
                 <div className="hidden lg:flex flex-col w-full justify-center items-center gap-2">

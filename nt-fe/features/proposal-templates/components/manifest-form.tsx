@@ -1,27 +1,22 @@
 "use client";
 
 /**
- * Render a validated manifest as a react-hook-form form: one input per field, chosen by `type`,
- * validated by `buildFormSchema` (per type/required/validation). On submit the parsed values are
- * handed to `onSubmit` for the engine (`buildTemplateProposal`) to turn into a proposal.
+ * Render a validated manifest as a react-hook-form form using the trezu design system: each field
+ * is an `InputBlock` (muted card, label as title, help as an info tooltip, red on invalid) wrapping
+ * a borderless input chosen by `type`. Validated by `buildFormSchema`; on submit the parsed values
+ * go to `onSubmit` for the engine (`buildTemplateProposal`).
  *
- * The form is *dynamic* — its shape is the runtime manifest, not a statically-inferred type — so
- * values flow as the generic `FieldValues`. That's the one place this differs from the repo's
- * static forms; everything else (Form/FormField/FormMessage, zodResolver) follows the house style.
+ * Inputs are controlled (value/onChange/onBlur, no RHF registration ref) — the same way the house
+ * `account-id-input` / payments fields wire LargeInput/Textarea. The form is dynamic (its shape is
+ * the runtime manifest), so values flow as the generic `FieldValues`.
  */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type ControllerRenderProps, useForm } from "react-hook-form";
 import { Button } from "@/components/button";
-import {
-    Form,
-    FormControl,
-    FormDescription,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { InputBlock } from "@/components/input-block";
+import { LargeInput } from "@/components/large-input";
+import { Textarea } from "@/components/textarea";
+import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import {
     Select,
     SelectContent,
@@ -30,7 +25,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import type { FieldValues } from "../build-proposal";
 import { buildFormSchema, defaultValuesFor } from "../form-schema";
 import type { Manifest, ManifestField } from "../manifest";
@@ -44,12 +38,15 @@ interface ManifestFormProps {
 
 type FieldControl = ControllerRenderProps<FieldValues, string>;
 
+const SELECT_TRIGGER_CLASS =
+    "h-auto w-full border-0 bg-transparent px-0 shadow-none focus-visible:ring-0";
+
 /** The current value as a string for text-like inputs (form state is string-valued except bool). */
 function asText(value: unknown): string {
     return typeof value === "string" ? value : "";
 }
 
-/** Draw the input that matches a field's `type`. Validation lives in `buildFormSchema`. */
+/** Draw the borderless input that matches a field's `type`. Validation lives in `buildFormSchema`. */
 function FieldControlInput({
     field,
     control,
@@ -60,11 +57,13 @@ function FieldControlInput({
     switch (field.type) {
         case "bool":
             return (
-                <Switch
-                    checked={Boolean(control.value)}
-                    onCheckedChange={control.onChange}
-                    onBlur={control.onBlur}
-                />
+                <div className="pt-1">
+                    <Switch
+                        checked={Boolean(control.value)}
+                        onCheckedChange={control.onChange}
+                        onBlur={control.onBlur}
+                    />
+                </div>
             );
         case "select":
             return (
@@ -72,7 +71,10 @@ function FieldControlInput({
                     value={asText(control.value)}
                     onValueChange={control.onChange}
                 >
-                    <SelectTrigger onBlur={control.onBlur}>
+                    <SelectTrigger
+                        className={SELECT_TRIGGER_CLASS}
+                        onBlur={control.onBlur}
+                    >
                         <SelectValue placeholder="Choose an option" />
                     </SelectTrigger>
                     <SelectContent>
@@ -87,31 +89,32 @@ function FieldControlInput({
         case "json":
             return (
                 <Textarea
+                    borderless
+                    rows={3}
                     value={asText(control.value)}
                     onChange={control.onChange}
                     onBlur={control.onBlur}
-                    ref={control.ref}
                     placeholder="{ }"
                 />
             );
         case "number":
             return (
-                <Input
+                <LargeInput
+                    borderless
                     type="number"
                     value={asText(control.value)}
                     onChange={control.onChange}
                     onBlur={control.onBlur}
-                    ref={control.ref}
                 />
             );
         default:
             // account, token, uint, amount, text — a free string input.
             return (
-                <Input
+                <LargeInput
+                    borderless
                     value={asText(control.value)}
                     onChange={control.onChange}
                     onBlur={control.onBlur}
-                    ref={control.ref}
                 />
             );
     }
@@ -133,36 +136,36 @@ export function ManifestForm({
         <Form {...form}>
             <form
                 onSubmit={form.handleSubmit(onSubmit)}
-                className="flex max-w-[600px] flex-col gap-4"
+                className="flex flex-col gap-3"
             >
                 {manifest.fields.map((field) => (
                     <FormField
                         key={field.name}
                         control={form.control}
                         name={field.name}
-                        render={({ field: control }) => (
+                        render={({ field: control, fieldState }) => (
                             <FormItem>
-                                <FormLabel>
-                                    {field.label}
-                                    {field.required ? " *" : ""}
-                                </FormLabel>
-                                <FormControl>
+                                <InputBlock
+                                    title={`${field.label}${field.required ? " *" : ""}`}
+                                    info={field.help}
+                                    invalid={!!fieldState.error}
+                                >
                                     <FieldControlInput
                                         field={field}
                                         control={control}
                                     />
-                                </FormControl>
-                                {field.help ? (
-                                    <FormDescription>
-                                        {field.help}
-                                    </FormDescription>
-                                ) : null}
+                                </InputBlock>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
                 ))}
-                <Button type="submit" disabled={submitting}>
+                <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={submitting}
+                >
                     {submitLabel ?? "File proposal"}
                 </Button>
             </form>

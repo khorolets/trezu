@@ -9,6 +9,10 @@ CREATE TABLE proposal_templates (
     name        TEXT NOT NULL,
     description TEXT NULL,
     manifest    JSONB NOT NULL,
+    -- Slug derived from the manifest's own id, so the URL key (/custom-templates/<manifest_id>) and
+    -- the [trezu-tmpl:<id>] provenance tag are the same identifier. GENERATED + STORED so it can
+    -- never drift from the manifest; NOT NULL because every stored manifest has a validated id.
+    manifest_id TEXT GENERATED ALWAYS AS (manifest->>'id') STORED NOT NULL,
     enabled     BOOLEAN NOT NULL DEFAULT true,
     created_by  UUID NULL REFERENCES users(id) ON DELETE SET NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -18,6 +22,10 @@ CREATE TABLE proposal_templates (
 -- One template name per DAO (human-facing identifier in the template list). Its leading
 -- column also serves equality lookups on dao_id, so no separate dao_id index is needed.
 CREATE UNIQUE INDEX uq_proposal_templates_dao_name ON proposal_templates(dao_id, name);
+-- One manifest id per DAO: the slug must resolve to exactly one template, so
+-- /custom-templates/<manifest_id> is unambiguous. Its leading dao_id column also serves
+-- dao-scoped slug lookups, so no separate index is needed for the route.
+CREATE UNIQUE INDEX uq_proposal_templates_dao_manifest_id ON proposal_templates(dao_id, manifest_id);
 -- Indexed for FK-delete performance (ON DELETE SET NULL when a user is removed).
 CREATE INDEX idx_proposal_templates_created_by ON proposal_templates(created_by);
 

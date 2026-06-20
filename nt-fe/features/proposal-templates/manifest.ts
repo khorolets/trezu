@@ -44,13 +44,24 @@ const integerString = (label: string) =>
 
 // The manifest id is wrapped in the `[trezu-tmpl:<id>]` description tag, so it must be tag-safe.
 const TAG_SAFE_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * Slugs reserved for static routes under `/custom-templates/` — a template id can't claim one, or
+ * its `/custom-templates/<id>` page would be shadowed by the static route and become unreachable.
+ * Keep this in sync with the backend `validate_manifest` reserved list.
+ */
+export const RESERVED_TEMPLATE_SLUGS = ["create", "new", "about"];
+
 const tagSafeId = z
     .string()
     .trim()
     .regex(
         TAG_SAFE_ID_RE,
         "id must be a tag-safe slug ([A-Za-z0-9_-]) so the [trezu-tmpl:<id>] tag stays parseable",
-    );
+    )
+    .refine((id) => !RESERVED_TEMPLATE_SLUGS.includes(id.toLowerCase()), {
+        message: `id must not be a reserved route slug (${RESERVED_TEMPLATE_SLUGS.join(", ")})`,
+    });
 
 // Field names must match the {{placeholder}} charset, so every field is referenceable from args.
 const FIELD_NAME_RE = /^[a-zA-Z0-9_]+$/;
@@ -331,6 +342,19 @@ export type Manifest = z.infer<typeof manifestSchema>;
 /** Validate an authored manifest (e.g. pasted JSON). Returns zod's safe-parse result. */
 export function parseManifest(input: unknown) {
     return manifestSchema.safeParse(input);
+}
+
+/**
+ * A manifest's `id` (its route slug + `[trezu-tmpl:<id>]` tag) read without full validation — for
+ * listing templates and resolving `/custom-templates/<slug>` to a template. Mirrors the backend's
+ * `manifest_id` generated column (`manifest->>'id'`). Returns undefined if the shape is off.
+ */
+export function manifestIdOf(manifest: unknown): string | undefined {
+    if (manifest && typeof manifest === "object" && "id" in manifest) {
+        const id = (manifest as { id: unknown }).id;
+        return typeof id === "string" ? id : undefined;
+    }
+    return undefined;
 }
 
 /** Flatten a manifest validation error into `path: message` lines for the authoring UI. */
