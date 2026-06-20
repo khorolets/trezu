@@ -202,6 +202,23 @@ export function manifestPlaceholders(value: unknown): Set<string> {
     return names;
 }
 
+/**
+ * Replace each `{{name}}` in `text` with `resolve(name)`. An escaped `{{{{...}}}}` collapses to a
+ * literal `{{...}}` and is never treated as a placeholder — the same escape `manifestPlaceholders`
+ * skips — so validation (extraction) and the form engine (substitution) never disagree on what a
+ * placeholder is.
+ */
+export function substitutePlaceholders(
+    text: string,
+    resolve: (name: string) => string,
+): string {
+    return text.replace(
+        /\{\{\{\{([\s\S]*?)\}\}\}\}|(?<!\{)\{\{\s*([a-zA-Z0-9_]+)\s*\}\}(?!\})/g,
+        (_full, escaped: string | undefined, name: string | undefined) =>
+            escaped === undefined ? resolve(name ?? "") : `{{${escaped}}}`,
+    );
+}
+
 /** Whether every `{{placeholder}}` in `source` is declared as a field `name`. */
 function placeholdersDeclared(
     fields: ReadonlyArray<{ name: string }>,
