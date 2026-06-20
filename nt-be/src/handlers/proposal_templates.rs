@@ -184,7 +184,7 @@ async fn fetch_template_by_id(
         SELECT pt.id, pt.dao_id, pt.name, pt.description,
                pt.manifest AS "manifest: serde_json::Value",
                pt.enabled, pt.created_at, pt.updated_at,
-               u.account_id AS created_by_wallet
+               u.account_id AS "created_by_wallet?"
         FROM proposal_templates pt
         LEFT JOIN users u ON u.id = pt.created_by
         WHERE pt.dao_id = $1 AND pt.id = $2
@@ -211,7 +211,7 @@ pub async fn list_proposal_templates(
         SELECT pt.id, pt.dao_id, pt.name, pt.description,
                pt.manifest AS "manifest: serde_json::Value",
                pt.enabled, pt.created_at, pt.updated_at,
-               u.account_id AS created_by_wallet
+               u.account_id AS "created_by_wallet?"
         FROM proposal_templates pt
         LEFT JOIN users u ON u.id = pt.created_by
         WHERE pt.dao_id = $1
@@ -537,6 +537,43 @@ mod tests {
         let resp = app.oneshot(builder.body(body).unwrap()).await.unwrap();
         let status = resp.status();
         (status, response_text(resp).await)
+    }
+
+    /// A template whose creator is unknown (`created_by = NULL`, e.g. an imported or directly-seeded
+    /// row) must list without crashing: the `LEFT JOIN users` yields a NULL `created_by_wallet`,
+    /// which the query has to decode as `None`. Regression for the missing `?` nullability override
+    /// — the API create path always sets a creator, so only a non-API row ever hits the null path.
+    #[sqlx::test]
+    async fn test_list_tolerates_null_creator(pool: PgPool) {
+        let state = test_state(pool.clone());
+        let app = create_routes(state.clone());
+
+        let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
+        seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
+        let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
+
+        let manifest = valid_manifest();
+        sqlx::query!(
+            r#"
+            INSERT INTO proposal_templates (dao_id, name, manifest, enabled, created_by)
+            VALUES ($1, $2, $3, true, NULL)
+            "#,
+            DAO_ID,
+            "Imported",
+            manifest,
+        )
+        .execute(&pool)
+        .await
+        .expect("insert null-creator template");
+
+        let (status, body) = send(app, "GET", base, &cookie, None).await;
+        assert_eq!(status, StatusCode::OK, "body: {body}");
+
+        let templates: Value = serde_json::from_str(&body).expect("json body");
+        let templates = templates.as_array().expect("array body");
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates[0]["name"], "Imported");
+        assert_eq!(templates[0]["createdBy"], Value::Null);
     }
 
     #[sqlx::test]
