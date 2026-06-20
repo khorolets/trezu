@@ -47,6 +47,29 @@ describe("buildFormSchema", () => {
         expect(schema.safeParse({ amount: "100" }).success).toBe(true);
     });
 
+    it("requires a required account field", () => {
+        const schema = schemaFor({
+            name: "acct",
+            label: "Account",
+            type: "account",
+            required: true,
+        });
+        expect(schema.safeParse({ acct: "" }).success).toBe(false);
+        expect(schema.safeParse({ acct: "alice.near" }).success).toBe(true);
+    });
+
+    it("requires a required select field", () => {
+        const schema = schemaFor({
+            name: "net",
+            label: "Net",
+            type: "select",
+            options: ["eth", "base"],
+            required: true,
+        });
+        expect(schema.safeParse({ net: "" }).success).toBe(false);
+        expect(schema.safeParse({ net: "eth" }).success).toBe(true);
+    });
+
     it("lets an optional field be empty", () => {
         const schema = schemaFor({ name: "memo", label: "Memo", type: "text" });
         expect(schema.safeParse({ memo: "" }).success).toBe(true);
@@ -150,5 +173,14 @@ describe("defaultValuesFor", () => {
             e: '{"k":1}',
             f: "100",
         });
+    });
+
+    it("coerces non-bool fields without a default to an empty string", () => {
+        const m = withFields([
+            { name: "a", label: "A", type: "text" },
+            { name: "b", label: "B", type: "account" },
+            { name: "c", label: "C", type: "select", options: ["x", "y"] },
+        ]);
+        expect(defaultValuesFor(m)).toEqual({ a: "", b: "", c: "" });
     });
 });
