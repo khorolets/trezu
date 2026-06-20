@@ -267,6 +267,51 @@ describe("parseManifest", () => {
         }
     });
 
+    it("rejects a validation.pattern that is not a valid regex", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                {
+                    name: "amount",
+                    label: "Amount",
+                    type: "text",
+                    validation: { pattern: "[abc" },
+                },
+            ],
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it("rejects validation.min/max on a non-numeric field", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                {
+                    name: "amount",
+                    label: "Amount",
+                    type: "text",
+                    validation: { min: "5" },
+                },
+            ],
+        });
+        expect(result.success).toBe(false);
+    });
+
+    it("rejects required: true on a bool field", () => {
+        const result = parseManifest({
+            ...validManifest,
+            fields: [
+                {
+                    name: "amount",
+                    label: "Amount",
+                    type: "bool",
+                    required: true,
+                },
+            ],
+        });
+        expect(result.success).toBe(false);
+    });
+
     it("accepts a type-appropriate default for each field type", () => {
         const fields = [
             { name: "amount", label: "Amount", type: "bool", default: true },

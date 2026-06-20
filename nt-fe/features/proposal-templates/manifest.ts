@@ -62,12 +62,31 @@ const fieldName = z
         "field.name must be a {{placeholder}}-safe identifier ([A-Za-z0-9_])",
     );
 
+/** Whether `pattern` compiles as a regex — a typo'd pattern must fail authoring, not drop silently. */
+function isValidRegExp(pattern: string): boolean {
+    try {
+        return new RegExp(pattern) instanceof RegExp;
+    } catch {
+        return false;
+    }
+}
+
 /** Optional per-field constraints. min/max are digit strings to stay u128/BigInt-safe. */
-export const manifestFieldValidationSchema = z.object({
-    min: integerString("validation.min").optional(),
-    max: integerString("validation.max").optional(),
-    pattern: z.string().optional(),
-});
+export const manifestFieldValidationSchema = z
+    .object({
+        min: integerString("validation.min").optional(),
+        max: integerString("validation.max").optional(),
+        pattern: z.string().optional(),
+    })
+    .refine(
+        (validation) =>
+            validation.pattern === undefined ||
+            isValidRegExp(validation.pattern),
+        {
+            message: "validation.pattern is not a valid regular expression",
+            path: ["pattern"],
+        },
+    );
 
 const manifestFieldBase = z.object({
     name: fieldName,
@@ -136,6 +155,24 @@ function defaultMatchesType(field: ManifestFieldBase): boolean {
     }
 }
 
+/** `validation.min`/`max` (numeric bounds) only apply to numeric fields. */
+function boundsMatchType(field: ManifestFieldBase): boolean {
+    const hasBound =
+        field.validation?.min !== undefined ||
+        field.validation?.max !== undefined;
+    return (
+        !hasBound ||
+        field.type === "uint" ||
+        field.type === "amount" ||
+        field.type === "number"
+    );
+}
+
+/** `required` is meaningless on a `bool` (a toggle always submits true or false). */
+function requiredAllowed(field: ManifestFieldBase): boolean {
+    return !(field.type === "bool" && field.required === true);
+}
+
 export const manifestFieldSchema = manifestFieldBase
     .refine(optionsMatchType, {
         message:
@@ -146,6 +183,15 @@ export const manifestFieldSchema = manifestFieldBase
         message:
             "`validation.pattern` is only valid on `text` or `number` fields",
         path: ["validation", "pattern"],
+    })
+    .refine(boundsMatchType, {
+        message:
+            "`validation.min`/`max` are only valid on numeric fields (uint, amount, number)",
+        path: ["validation"],
+    })
+    .refine(requiredAllowed, {
+        message: "`required` has no meaning on a `bool` field",
+        path: ["required"],
     })
     .refine(defaultMatchesType, {
         message: "`default` does not match the field's `type`",
