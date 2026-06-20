@@ -24,12 +24,15 @@ import {
 } from "@/features/proposal-templates/manifest";
 import { useTreasury } from "@/hooks/use-treasury";
 import { useTreasuryPolicy } from "@/hooks/use-treasury-queries";
-import { useNearStore } from "@/stores/near-store";
+import { useNear, useNearStore } from "@/stores/near-store";
 
 export default function CustomTemplatePage() {
     const params = useParams();
     const slug = params?.slug as string | undefined;
     const { treasuryId } = useTreasury();
+    // accountId is non-null only when fully authenticated (connected + auth + terms accepted) —
+    // the same gate the gasless relayer path (createProposal) enforces before signing.
+    const { accountId } = useNear();
     const connector = useNearStore((state) => state.connector);
     const { data: policy } = useTreasuryPolicy(treasuryId);
     const { data: templates, isLoading } = useProposalTemplates();
@@ -44,8 +47,8 @@ export default function CustomTemplatePage() {
         if (!parsed?.success || !treasuryId) {
             return;
         }
-        if (!connector) {
-            toast.error("Connect your wallet first");
+        if (!connector || !accountId) {
+            toast.error("Sign in and accept the terms to file a proposal");
             return;
         }
         setSubmitting(true);

@@ -61,6 +61,7 @@ function FieldControlInput({
                     <Switch
                         checked={Boolean(control.value)}
                         onCheckedChange={control.onChange}
+                        onBlur={control.onBlur}
                     />
                 </div>
             );
@@ -70,7 +71,10 @@ function FieldControlInput({
                     value={asText(control.value)}
                     onValueChange={control.onChange}
                 >
-                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                    <SelectTrigger
+                        className={SELECT_TRIGGER_CLASS}
+                        onBlur={control.onBlur}
+                    >
                         <SelectValue placeholder="Choose an option" />
                     </SelectTrigger>
                     <SelectContent>
