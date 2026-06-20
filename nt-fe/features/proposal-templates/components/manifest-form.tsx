@@ -61,10 +61,9 @@ function FieldControlInput({
         case "bool":
             return (
                 <Switch
-                    checked={control.value === true}
+                    checked={Boolean(control.value)}
                     onCheckedChange={control.onChange}
                     onBlur={control.onBlur}
-                    ref={control.ref}
                 />
             );
         case "select":
@@ -73,7 +72,7 @@ function FieldControlInput({
                     value={asText(control.value)}
                     onValueChange={control.onChange}
                 >
-                    <SelectTrigger onBlur={control.onBlur} ref={control.ref}>
+                    <SelectTrigger onBlur={control.onBlur}>
                         <SelectValue placeholder="Choose an option" />
                     </SelectTrigger>
                     <SelectContent>
@@ -88,7 +87,6 @@ function FieldControlInput({
         case "json":
             return (
                 <Textarea
-                    name={control.name}
                     value={asText(control.value)}
                     onChange={control.onChange}
                     onBlur={control.onBlur}
@@ -100,7 +98,6 @@ function FieldControlInput({
             return (
                 <Input
                     type="number"
-                    name={control.name}
                     value={asText(control.value)}
                     onChange={control.onChange}
                     onBlur={control.onBlur}
@@ -111,12 +108,10 @@ function FieldControlInput({
             // account, token, uint, amount, text — a free string input.
             return (
                 <Input
-                    name={control.name}
                     value={asText(control.value)}
                     onChange={control.onChange}
                     onBlur={control.onBlur}
                     ref={control.ref}
-                    placeholder={field.help}
                 />
             );
     }
