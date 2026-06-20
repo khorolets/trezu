@@ -18,11 +18,15 @@ import type { Manifest, ManifestField } from "./manifest";
 const NEAR_ACCOUNT_RE = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
 const INTEGER_RE = /^\d+$/;
 
-/** Wrap a check so an empty (unfilled) value passes; `required` is enforced separately. */
+/**
+ * Wrap a check so an empty (unfilled) value passes; `required` is enforced separately. Accepts
+ * `unknown` because later refines run on a widened (`z.ZodTypeAny`) schema whose value type is no
+ * longer `string`; the `typeof` guard narrows it back before the inner check.
+ */
 const allowEmpty =
     (check: (value: string) => boolean) =>
-    (value: string): boolean =>
-        value === "" || check(value);
+    (value: unknown): boolean =>
+        typeof value !== "string" || value === "" || check(value);
 
 function isParseableJson(value: string): boolean {
     try {
