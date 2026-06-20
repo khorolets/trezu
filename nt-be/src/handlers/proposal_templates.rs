@@ -123,6 +123,23 @@ fn validate_manifest(manifest: &Value) -> Result<Value, String> {
     }
 
     let id = trimmed(obj, "id", "id")?;
+    // `id` becomes the `manifest_id` generated column and the `/custom-templates/<id>` route key, so
+    // enforce its slug shape here (the rest of the strict field validation stays a follow-up): a
+    // tag-safe charset, and not a reserved static-route slug that would shadow the template's page.
+    // Keep RESERVED_SLUGS in sync with the frontend `RESERVED_TEMPLATE_SLUGS` in manifest.ts.
+    if !id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err("manifest.id must be a tag-safe slug ([A-Za-z0-9_-])".to_string());
+    }
+    const RESERVED_SLUGS: [&str; 3] = ["create", "new", "about"];
+    if RESERVED_SLUGS.contains(&id.to_lowercase().as_str()) {
+        return Err(format!(
+            "manifest.id must not be a reserved route slug ({})",
+            RESERVED_SLUGS.join(", ")
+        ));
+    }
     let title = trimmed(obj, "title", "title")?;
 
     let binding = obj
@@ -295,7 +312,7 @@ pub async fn create_proposal_template(
         {
             (
                 StatusCode::CONFLICT,
-                "A template with this name already exists for this DAO".to_string(),
+                "A template with this name or id already exists for this DAO".to_string(),
             )
         } else {
             internal_error("Failed to create proposal template", e)
@@ -360,7 +377,7 @@ pub async fn update_proposal_template(
         {
             (
                 StatusCode::CONFLICT,
-                "A template with this name already exists for this DAO".to_string(),
+                "A template with this name or id already exists for this DAO".to_string(),
             )
         } else {
             internal_error("Failed to update proposal template", e)
@@ -576,6 +593,30 @@ mod tests {
         assert_eq!(templates[0]["createdBy"], Value::Null);
     }
 
+    /// `id` is the route slug, so the create endpoint rejects a reserved one — it would shadow a
+    /// static `/custom-templates/<slug>` route. Mirrors the frontend `RESERVED_TEMPLATE_SLUGS`.
+    #[sqlx::test]
+    async fn test_create_rejects_reserved_slug_id(pool: PgPool) {
+        let state = test_state(pool.clone());
+        let app = create_routes(state.clone());
+
+        let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
+        seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
+        let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
+
+        let mut manifest = valid_manifest();
+        manifest["id"] = json!("create");
+        let (status, body) = send(
+            app,
+            "POST",
+            base,
+            &cookie,
+            Some(json!({ "name": "Reserved", "manifest": manifest })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    }
+
     #[sqlx::test]
     async fn test_proposal_template_crud(pool: PgPool) {
         let state = test_state(pool.clone());
@@ -651,24 +692,30 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
 
-        // CREATE a second template (target for the rename-collision check below)
+        // CREATE a second template (target for the rename-collision check below). Distinct
+        // manifest id — manifest_id is unique per DAO now.
+        let mut other_manifest = valid_manifest();
+        other_manifest["id"] = json!("other-template");
         let (status, _) = send(
             app.clone(),
             "POST",
             base.clone(),
             &cookie,
-            Some(json!({ "name": "Other Template", "manifest": valid_manifest() })),
+            Some(json!({ "name": "Other Template", "manifest": other_manifest })),
         )
         .await;
         assert_eq!(status, StatusCode::CREATED);
 
-        // A whitespace-padded duplicate of an existing name must collide, not create a twin.
+        // A whitespace-padded duplicate of an existing name must collide on the trimmed name —
+        // give it a distinct manifest id so the collision is purely the name, not manifest_id.
+        let mut padded_manifest = valid_manifest();
+        padded_manifest["id"] = json!("padded-twin");
         let (status, _) = send(
             app.clone(),
             "POST",
             base.clone(),
             &cookie,
-            Some(json!({ "name": "  Other Template  ", "manifest": valid_manifest() })),
+            Some(json!({ "name": "  Other Template  ", "manifest": padded_manifest })),
         )
         .await;
         assert_eq!(status, StatusCode::CONFLICT);

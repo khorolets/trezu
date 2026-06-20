@@ -201,6 +201,12 @@ describe("parseManifest", () => {
         );
     });
 
+    it("rejects a reserved route slug as the id", () => {
+        expect(parseManifest({ ...validManifest, id: "create" }).success).toBe(
+            false,
+        );
+    });
+
     it("rejects a field name that is not a {{placeholder}}-safe identifier", () => {
         const result = parseManifest({
             ...validManifest,
