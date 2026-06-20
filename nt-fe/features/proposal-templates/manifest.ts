@@ -163,10 +163,22 @@ export const manifestBindingSchema = z.object({
 export type ManifestBinding = z.infer<typeof manifestBindingSchema>;
 
 /**
- * `{{field}}` placeholder pattern. The look-arounds skip escaped `{{{{literal}}}}` sequences so a
- * literal `{{` is never mistaken for a placeholder.
+ * The shape of one `{{name}}` placeholder, kept as a source string so extraction and substitution
+ * build their regexes from a single definition (a charset tweak can't leave one behind). The
+ * look-arounds skip escaped `{{{{literal}}}}` sequences so a literal `{{` is never mistaken for a
+ * placeholder; capture group 1 is the field name.
  */
-const PLACEHOLDER_RE = /(?<!\{)\{\{\s*([a-zA-Z0-9_]+)\s*\}\}(?!\})/g;
+const PLACEHOLDER_PATTERN =
+    "(?<!\\{)\\{\\{\\s*([a-zA-Z0-9_]+)\\s*\\}\\}(?!\\})";
+
+/** Extraction: matches every placeholder (group 1 = name). */
+const PLACEHOLDER_RE = new RegExp(PLACEHOLDER_PATTERN, "g");
+
+/** Substitution: an escaped `{{{{...}}}}` (group 1) OR a placeholder (group 2 = name). */
+const SUBSTITUTE_RE = new RegExp(
+    `\\{\\{\\{\\{([\\s\\S]*?)\\}\\}\\}\\}|${PLACEHOLDER_PATTERN}`,
+    "g",
+);
 
 function collectStrings(value: unknown, out: string[]): void {
     if (typeof value === "string") {
@@ -200,6 +212,23 @@ export function manifestPlaceholders(value: unknown): Set<string> {
         }
     }
     return names;
+}
+
+/**
+ * Replace each `{{name}}` in `text` with `resolve(name)`. An escaped `{{{{...}}}}` collapses to a
+ * literal `{{...}}` and is never treated as a placeholder — the same escape `manifestPlaceholders`
+ * skips — so validation (extraction) and the form engine (substitution) never disagree on what a
+ * placeholder is.
+ */
+export function substitutePlaceholders(
+    text: string,
+    resolve: (name: string) => string,
+): string {
+    return text.replace(
+        SUBSTITUTE_RE,
+        (_full, escaped: string | undefined, name: string | undefined) =>
+            escaped === undefined ? resolve(name ?? "") : `{{${escaped}}}`,
+    );
 }
 
 /** Whether every `{{placeholder}}` in `source` is declared as a field `name`. */
