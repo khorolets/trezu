@@ -38,15 +38,18 @@ function resolveValue(value: unknown): string {
     return JSON.stringify(value);
 }
 
+/** Interpolate `{{field}}` placeholders in a single string — the one path both args and summary use. */
+function interpolateString(text: string, values: FieldValues): string {
+    return substitutePlaceholders(text, (name) => resolveValue(values[name]));
+}
+
 /** Recursively interpolate `{{field}}` placeholders through an args template using `values`. */
 export function interpolateArgs(
     template: unknown,
     values: FieldValues,
 ): unknown {
     if (typeof template === "string") {
-        return substitutePlaceholders(template, (name) =>
-            resolveValue(values[name]),
-        );
+        return interpolateString(template, values);
     }
     if (Array.isArray(template)) {
         return template.map((item) => interpolateArgs(item, values));
@@ -88,9 +91,7 @@ export function buildTemplateProposal(
     };
 
     const summary = manifest.summary
-        ? substitutePlaceholders(manifest.summary, (name) =>
-              resolveValue(values[name]),
-          )
+        ? interpolateString(manifest.summary, values)
         : manifest.title;
     const description = encodeToMarkdown({
         proposal_action: "custom",

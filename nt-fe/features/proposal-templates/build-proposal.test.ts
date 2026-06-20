@@ -16,7 +16,7 @@ function manifest(raw: unknown): Manifest {
     return result.data;
 }
 
-// The staging recovery-mint, modelled as a manifest. Mirrors example_tx.json / CLAUDE.md.
+// The staging NEAR-Intents recovery-mint (one `ft_deposit` call), modelled as a manifest.
 const rawMint = {
     version: 1,
     id: "ni-recovery-mint",
@@ -77,6 +77,14 @@ describe("interpolateArgs", () => {
         expect(interpolateArgs("{{{{keep}}}} {{x}}", { x: "X" })).toBe(
             "{{keep}} X",
         );
+    });
+
+    it("returns an empty args object unchanged", () => {
+        expect(interpolateArgs({}, {})).toEqual({});
+    });
+
+    it("tolerates whitespace inside a placeholder ({{ name }})", () => {
+        expect(interpolateArgs("{{ x }}", { x: "X" })).toBe("X");
     });
 });
 
