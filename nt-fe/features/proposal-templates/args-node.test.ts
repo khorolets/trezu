@@ -1,0 +1,69 @@
+import { describe, expect, it } from "bun:test";
+import { changeType, emptyNodeOf, valueTypeOf } from "./args-node";
+
+describe("valueTypeOf", () => {
+    it("infers `field` for a lone placeholder, `text` otherwise", () => {
+        expect(valueTypeOf({ kind: "string", value: "{{amount}}" })).toBe(
+            "field",
+        );
+        expect(valueTypeOf({ kind: "string", value: "hi {{amount}}" })).toBe(
+            "text",
+        );
+        expect(valueTypeOf({ kind: "string", value: "static" })).toBe("text");
+    });
+
+    it("maps non-string kinds directly", () => {
+        expect(valueTypeOf({ kind: "object", entries: [] })).toBe("object");
+        expect(valueTypeOf({ kind: "array", items: [] })).toBe("array");
+        expect(valueTypeOf({ kind: "number", value: 1 })).toBe("number");
+        expect(valueTypeOf({ kind: "boolean", value: true })).toBe("boolean");
+        expect(valueTypeOf({ kind: "null" })).toBe("null");
+    });
+});
+
+describe("emptyNodeOf", () => {
+    it("seeds a `field` node with the first declared field", () => {
+        expect(emptyNodeOf("field", ["amount", "token"])).toEqual({
+            kind: "string",
+            value: "{{amount}}",
+        });
+    });
+
+    it("seeds an empty string for `field` when nothing is declared", () => {
+        expect(emptyNodeOf("field", [])).toEqual({ kind: "string", value: "" });
+    });
+
+    it("builds empty containers and scalars", () => {
+        expect(emptyNodeOf("object", [])).toEqual({
+            kind: "object",
+            entries: [],
+        });
+        expect(emptyNodeOf("array", [])).toEqual({ kind: "array", items: [] });
+        expect(emptyNodeOf("number", [])).toEqual({ kind: "number", value: 0 });
+        expect(emptyNodeOf("null", [])).toEqual({ kind: "null" });
+    });
+});
+
+describe("changeType", () => {
+    it("keeps the string as-is when switching to `text`", () => {
+        const node = { kind: "string", value: "hi {{x}}" } as const;
+        expect(changeType(node, "text", [])).toBe(node);
+    });
+
+    it("keeps a lone placeholder when switching `text` → `field`", () => {
+        const node = { kind: "string", value: "{{amount}}" } as const;
+        expect(changeType(node, "field", ["amount"])).toBe(node);
+    });
+
+    it("seeds a field when switching free text → `field`", () => {
+        expect(
+            changeType({ kind: "string", value: "hello" }, "field", ["amount"]),
+        ).toEqual({ kind: "string", value: "{{amount}}" });
+    });
+
+    it("resets to an empty node when changing across kinds", () => {
+        expect(changeType({ kind: "number", value: 5 }, "boolean", [])).toEqual(
+            { kind: "boolean", value: false },
+        );
+    });
+});

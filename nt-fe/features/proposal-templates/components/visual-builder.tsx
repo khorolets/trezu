@@ -2,13 +2,34 @@
 
 /**
  * The visual constructor body: edits a `ManifestDraft` through sectioned form controls instead of
- * raw JSON. Details + on-chain binding + the fields list are fully editable here; `args` is shown
- * read-only for now (a dedicated tree editor is the next layer — until then args is edited in Code
- * mode). `icon` isn't surfaced but rides along in the draft, so round-tripping never drops it.
+ * raw JSON. Validation errors render under the input they're about (red field + message beneath),
+ * via `errorFor`. The few that aren't tied to a single input — the cross-field "unique names" rule,
+ * `args` placeholder issues — show at their section's foot. `icon` isn't surfaced but rides along
+ * in the draft, so round-tripping never drops it.
  */
-import { Input } from "@/components/ui/input";
-import { argNodeToJson, type ManifestDraft } from "../draft";
-import { FieldsBuilder, Labeled } from "./fields-builder";
+import type { ManifestDraft } from "../draft";
+import { errorFor } from "../error-map";
+import { ArgsTreeEditor } from "./args-tree-editor";
+import { FieldError, FieldsBuilder, LabeledInput } from "./fields-builder";
+
+/** Errors that belong to the args subtree (not mappable to a single input in the tree). */
+function argErrors(errors: string[]): string[] {
+    return errors.filter((entry) => entry.split(":")[0].startsWith("args"));
+}
+
+/** Errors not claimed by any section's inputs (a safety net so nothing goes unseen). */
+function otherErrors(errors: string[]): string[] {
+    const claimed = (entry: string) => {
+        const path = entry.split(":")[0];
+        return (
+            path.startsWith("args") ||
+            path.startsWith("fields") ||
+            path.startsWith("binding") ||
+            ["id", "title", "description", "summary", "icon"].includes(path)
+        );
+    };
+    return errors.filter((entry) => !claimed(entry));
+}
 
 function Section({
     title,
@@ -34,63 +55,63 @@ function Section({
     );
 }
 
+function ErrorList({ errors }: { errors: string[] }) {
+    if (errors.length === 0) {
+        return null;
+    }
+    return (
+        <ul className="list-disc pl-5 text-destructive text-sm">
+            {errors.map((message) => (
+                <li key={message}>{message}</li>
+            ))}
+        </ul>
+    );
+}
+
 interface VisualBuilderProps {
     draft: ManifestDraft;
+    errors: string[];
     onChange: (draft: ManifestDraft) => void;
 }
 
-export function VisualBuilder({ draft, onChange }: VisualBuilderProps) {
+export function VisualBuilder({ draft, errors, onChange }: VisualBuilderProps) {
     const update = (patch: Partial<ManifestDraft>) =>
         onChange({ ...draft, ...patch });
     const updateBinding = (patch: Partial<ManifestDraft["binding"]>) =>
         onChange({ ...draft, binding: { ...draft.binding, ...patch } });
 
-    const argsJson = JSON.stringify(
-        argNodeToJson({ kind: "object", entries: draft.args }),
-        null,
-        2,
-    );
-
     return (
         <div className="flex flex-col gap-4">
             <Section title="Details">
                 <div className="grid gap-3 sm:grid-cols-2">
-                    <Labeled label="ID (slug)">
-                        <Input
-                            value={draft.id}
-                            onChange={(event) =>
-                                update({ id: event.target.value })
-                            }
-                            placeholder="recovery-mint"
-                        />
-                    </Labeled>
-                    <Labeled label="Title">
-                        <Input
-                            value={draft.title}
-                            onChange={(event) =>
-                                update({ title: event.target.value })
-                            }
-                            placeholder="Recovery Mint"
-                        />
-                    </Labeled>
+                    <LabeledInput
+                        label="ID (slug)"
+                        value={draft.id}
+                        onChange={(value) => update({ id: value })}
+                        placeholder="set-greeting"
+                        error={errorFor(errors, "id")}
+                    />
+                    <LabeledInput
+                        label="Title"
+                        value={draft.title}
+                        onChange={(value) => update({ title: value })}
+                        placeholder="Set Greeting"
+                        error={errorFor(errors, "title")}
+                    />
                 </div>
-                <Labeled label="Description (optional)">
-                    <Input
-                        value={draft.description}
-                        onChange={(event) =>
-                            update({ description: event.target.value })
-                        }
-                    />
-                </Labeled>
-                <Labeled label="Summary (optional, supports {{fields}})">
-                    <Input
-                        value={draft.summary}
-                        onChange={(event) =>
-                            update({ summary: event.target.value })
-                        }
-                        placeholder="Mint {{amount}}"
-                    />
-                </Labeled>
+                <LabeledInput
+                    label="Description (optional)"
+                    value={draft.description}
+                    onChange={(value) => update({ description: value })}
+                    error={errorFor(errors, "description")}
+                />
+                <LabeledInput
+                    label="Summary (optional, supports {{fields}})"
+                    value={draft.summary}
+                    onChange={(value) => update({ summary: value })}
+                    placeholder="Set greeting to {{greeting}}"
+                    error={errorFor(errors, "summary")}
+                />
             </Section>
 
             <Section
@@ -98,46 +119,38 @@ export function VisualBuilder({ draft, onChange }: VisualBuilderProps) {
                 description="The fixed FunctionCall this template files."
             >
                 <div className="grid gap-3 sm:grid-cols-2">
-                    <Labeled label="Receiver (contract)">
-                        <Input
-                            value={draft.binding.receiver_id}
-                            onChange={(event) =>
-                                updateBinding({
-                                    receiver_id: event.target.value,
-                                })
-                            }
-                            placeholder="omft.near"
-                        />
-                    </Labeled>
-                    <Labeled label="Method">
-                        <Input
-                            value={draft.binding.method_name}
-                            onChange={(event) =>
-                                updateBinding({
-                                    method_name: event.target.value,
-                                })
-                            }
-                            placeholder="ft_deposit"
-                        />
-                    </Labeled>
-                    <Labeled label="Deposit (yoctoNEAR)">
-                        <Input
-                            value={draft.binding.deposit}
-                            onChange={(event) =>
-                                updateBinding({ deposit: event.target.value })
-                            }
-                            placeholder="0"
-                        />
-                    </Labeled>
-                    <Labeled label="Gas">
-                        <Input
-                            value={draft.binding.gas}
-                            onChange={(event) =>
-                                updateBinding({ gas: event.target.value })
-                            }
-                            placeholder="30000000000000"
-                        />
-                    </Labeled>
+                    <LabeledInput
+                        label="Receiver (contract)"
+                        value={draft.binding.receiver_id}
+                        onChange={(value) =>
+                            updateBinding({ receiver_id: value })
+                        }
+                        placeholder="guestbook.near"
+                        error={errorFor(errors, "binding.receiver_id")}
+                    />
+                    <LabeledInput
+                        label="Method"
+                        value={draft.binding.method_name}
+                        onChange={(value) =>
+                            updateBinding({ method_name: value })
+                        }
+                        placeholder="set_greeting"
+                        error={errorFor(errors, "binding.method_name")}
+                    />
+                    <LabeledInput
+                        label="Deposit (yoctoNEAR)"
+                        value={draft.binding.deposit}
+                        onChange={(value) => updateBinding({ deposit: value })}
+                        placeholder="0"
+                        error={errorFor(errors, "binding.deposit")}
+                    />
+                    <LabeledInput
+                        label="Gas"
+                        value={draft.binding.gas}
+                        onChange={(value) => updateBinding({ gas: value })}
+                        placeholder="30000000000000"
+                        error={errorFor(errors, "binding.gas")}
+                    />
                 </div>
             </Section>
 
@@ -147,18 +160,27 @@ export function VisualBuilder({ draft, onChange }: VisualBuilderProps) {
             >
                 <FieldsBuilder
                     fields={draft.fields}
+                    errors={errors}
                     onChange={(fields) => update({ fields })}
                 />
+                <FieldError message={errorFor(errors, "fields")} />
             </Section>
 
             <Section
                 title="Arguments"
-                description="How field values map into the call. Visual editing arrives in the next layer — edit in Code mode for now."
+                description="How each field value is wired into the call — pick a field for a direct value, or text with {{field}} placeholders for composed strings."
             >
-                <pre className="overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">
-                    {argsJson}
-                </pre>
+                <ArgsTreeEditor
+                    entries={draft.args}
+                    fieldNames={draft.fields
+                        .map((field) => field.name)
+                        .filter(Boolean)}
+                    onChange={(args) => update({ args })}
+                />
+                <ErrorList errors={argErrors(errors)} />
             </Section>
+
+            <ErrorList errors={otherErrors(errors)} />
         </div>
     );
 }
