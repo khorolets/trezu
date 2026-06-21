@@ -6,7 +6,10 @@
 use crate::AppState;
 
 #[cfg(test)]
-use crate::utils::cache::{Cache, CacheKey};
+use crate::utils::cache::Cache;
+
+#[cfg(test)]
+use near_account_id::AccountIdRef;
 
 #[cfg(test)]
 use near_api::{NetworkConfig, RPCEndpoint, Signer};
@@ -154,14 +157,15 @@ pub fn policy_granting(account_id: &str, permissions: &[&str]) -> serde_json::Va
 }
 
 /// Seed the treasury-policy cache so policy-gated handlers (`verify_can_perform_action`) can be
-/// unit-tested without an RPC `get_policy` call. Mirrors `fetch_treasury_policy_cached`'s cache key
-/// (namespace `treasury-policy`, `<dao_id>`, `at_before = 0`), so the seeded policy is served from
-/// cache and the RPC closure never runs.
+/// unit-tested without an RPC `get_policy` call. Uses the same `treasury_policy_cache_key` the fetch
+/// path builds, so the seeded key can't desync from the lookup; the seeded policy is then served
+/// from cache and the RPC closure never runs.
 #[cfg(test)]
-pub async fn seed_treasury_policy(state: &AppState, dao_id: &str, policy: serde_json::Value) {
-    let key = CacheKey::new("treasury-policy")
-        .with(dao_id)
-        .with(0u64)
-        .build();
+pub async fn seed_treasury_policy(
+    state: &AppState,
+    dao_id: &AccountIdRef,
+    policy: serde_json::Value,
+) {
+    let key = crate::handlers::treasury::policy::treasury_policy_cache_key(dao_id, 0);
     state.cache.short_term.insert(key, policy).await;
 }
