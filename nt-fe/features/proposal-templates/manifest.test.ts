@@ -3,6 +3,7 @@ import {
     manifestErrorMessages,
     manifestPlaceholders,
     parseManifest,
+    validateManifestText,
 } from "./manifest";
 
 const validManifest = {
@@ -373,5 +374,35 @@ describe("manifestPlaceholders", () => {
         expect(manifestPlaceholders(undefined).size).toBe(0);
         expect(manifestPlaceholders({ n: 5, b: true, z: null }).size).toBe(0);
         expect([...manifestPlaceholders(["{{x}}"])]).toEqual(["x"]);
+    });
+});
+
+describe("validateManifestText", () => {
+    it("treats empty / whitespace-only input as pristine (no manifest, no errors)", () => {
+        expect(validateManifestText("")).toEqual({ errors: [] });
+        expect(validateManifestText("   \n  ")).toEqual({ errors: [] });
+    });
+
+    it("reports invalid JSON without throwing", () => {
+        const result = validateManifestText("{ not json");
+        expect(result.manifest).toBeUndefined();
+        expect(result.errors).toEqual(["Manifest is not valid JSON"]);
+    });
+
+    it("surfaces schema errors as `path: message` lines for valid JSON", () => {
+        const result = validateManifestText(
+            JSON.stringify({ ...validManifest, id: "" }),
+        );
+        expect(result.manifest).toBeUndefined();
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.errors.some((m) => m.startsWith("id:"))).toBe(true);
+    });
+
+    it("returns the parsed (and trimmed) manifest on success", () => {
+        const result = validateManifestText(
+            JSON.stringify({ ...validManifest, id: "  demo-mint  " }),
+        );
+        expect(result.errors).toEqual([]);
+        expect(result.manifest?.id).toBe("demo-mint");
     });
 });

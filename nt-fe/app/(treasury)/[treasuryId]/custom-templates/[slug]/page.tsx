@@ -6,6 +6,7 @@
  * FunctionCall (`buildTemplateProposal`) and files it by signing `add_proposal` with the connected
  * wallet (the proposer pays gas; bond is 0). Production can swap this for the gasless relayer.
  */
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -91,6 +92,16 @@ export default function CustomTemplatePage() {
             backButton
         >
             <div className="mx-auto flex w-full max-w-[600px] flex-col gap-4">
+                {template ? (
+                    <div className="flex justify-end">
+                        <Link
+                            href={`/${treasuryId}/custom-templates/${slug}/edit`}
+                            className="text-muted-foreground text-sm transition-colors hover:text-foreground"
+                        >
+                            Edit template
+                        </Link>
+                    </div>
+                ) : null}
                 {isLoading ? (
                     <PageCard>
                         <p className="text-muted-foreground text-sm">
