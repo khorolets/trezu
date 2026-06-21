@@ -6,7 +6,7 @@
 use crate::AppState;
 
 #[cfg(test)]
-use crate::utils::cache::Cache;
+use crate::utils::cache::{Cache, CacheKey};
 
 #[cfg(test)]
 use near_api::{NetworkConfig, RPCEndpoint, Signer};
@@ -138,4 +138,30 @@ pub fn build_test_state(db_pool: sqlx::PgPool) -> AppState {
         goldsky_pool: None,
         neardata_client: None,
     }
+}
+
+/// A minimal SputnikDAO policy granting `account_id` the given `<kind>:<action>` permissions via a
+/// group role — enough for `AuthUser::verify_can_perform_action` to evaluate.
+#[cfg(test)]
+pub fn policy_granting(account_id: &str, permissions: &[&str]) -> serde_json::Value {
+    serde_json::json!({
+        "roles": [{
+            "name": "test-role",
+            "kind": { "Group": [account_id] },
+            "permissions": permissions,
+        }],
+    })
+}
+
+/// Seed the treasury-policy cache so policy-gated handlers (`verify_can_perform_action`) can be
+/// unit-tested without an RPC `get_policy` call. Mirrors `fetch_treasury_policy_cached`'s cache key
+/// (namespace `treasury-policy`, `<dao_id>`, `at_before = 0`), so the seeded policy is served from
+/// cache and the RPC closure never runs.
+#[cfg(test)]
+pub async fn seed_treasury_policy(state: &AppState, dao_id: &str, policy: serde_json::Value) {
+    let key = CacheKey::new("treasury-policy")
+        .with(dao_id)
+        .with(0u64)
+        .build();
+    state.cache.short_term.insert(key, policy).await;
 }

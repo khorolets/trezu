@@ -295,3 +295,54 @@ impl FromRequestParts<Arc<AppState>> for OptionalAuthUser {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::{build_test_state, policy_granting, seed_treasury_policy};
+
+    /// With the treasury-policy cache seeded (no RPC), `verify_can_perform_action` evaluates the
+    /// on-chain role/permission rules: the granted account + action passes, an ungranted action or
+    /// a non-member is rejected. This is what makes a `ChangePolicy`-gated handler unit-testable.
+    #[sqlx::test]
+    async fn verify_can_perform_action_reads_seeded_policy(pool: sqlx::PgPool) {
+        let state = Arc::new(build_test_state(pool));
+        let dao: AccountId = "test-dao.sputnik-dao.near".parse().unwrap();
+
+        // alice may ChangePolicy; nobody else is in the role.
+        seed_treasury_policy(
+            &state,
+            dao.as_str(),
+            policy_granting("alice.near", &["*:ChangePolicy"]),
+        )
+        .await;
+
+        let alice = AuthUser {
+            account_id: "alice.near".parse().unwrap(),
+        };
+        assert!(
+            alice
+                .verify_can_perform_action(&state, &dao, "ChangePolicy")
+                .await
+                .is_ok(),
+            "granted ChangePolicy must pass"
+        );
+        assert!(
+            alice
+                .verify_can_perform_action(&state, &dao, "AddProposal")
+                .await
+                .is_err(),
+            "an action the role does not grant must be rejected"
+        );
+
+        let bob = AuthUser {
+            account_id: "bob.near".parse().unwrap(),
+        };
+        assert!(
+            bob.verify_can_perform_action(&state, &dao, "ChangePolicy")
+                .await
+                .is_err(),
+            "an account not in the role must be rejected"
+        );
+    }
+}
