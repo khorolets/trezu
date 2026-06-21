@@ -295,3 +295,90 @@ impl FromRequestParts<Arc<AppState>> for OptionalAuthUser {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::{build_test_state, policy_granting, seed_treasury_policy};
+    use serde_json::json;
+
+    /// The role/permission rules themselves — pure, via the synchronous
+    /// `verify_can_perform_action_with_policy`, so no DB / cache / RPC is involved. Covers all
+    /// three advertised branches: a Group role gates by member + action, an `Everyone` role lets
+    /// any account through, and a `*:*` wildcard permits any action.
+    #[test]
+    fn policy_permission_rules() {
+        let dao: AccountId = "test-dao.sputnik-dao.near".parse().unwrap();
+        let alice = AuthUser {
+            account_id: "alice.near".parse().unwrap(),
+        };
+        let bob = AuthUser {
+            account_id: "bob.near".parse().unwrap(),
+        };
+
+        // Group role granting one action: only the member, only that action.
+        let group = policy_granting("alice.near", &["*:ChangePolicy"]);
+        assert!(
+            alice
+                .verify_can_perform_action_with_policy(&group, &dao, "ChangePolicy")
+                .is_ok()
+        );
+        assert!(
+            alice
+                .verify_can_perform_action_with_policy(&group, &dao, "AddProposal")
+                .is_err(),
+            "an action the role does not grant must be rejected"
+        );
+        assert!(
+            bob.verify_can_perform_action_with_policy(&group, &dao, "ChangePolicy")
+                .is_err(),
+            "an account outside the role's group must be rejected"
+        );
+
+        // `Everyone` role: any account may perform the granted action.
+        let everyone = json!({
+            "roles": [{ "name": "all", "kind": "Everyone", "permissions": ["*:ChangePolicy"] }],
+        });
+        assert!(
+            bob.verify_can_perform_action_with_policy(&everyone, &dao, "ChangePolicy")
+                .is_ok(),
+            "an Everyone role must let any account through"
+        );
+
+        // `*:*` wildcard permission: the member may perform any action.
+        let admin = policy_granting("alice.near", &["*:*"]);
+        assert!(
+            alice
+                .verify_can_perform_action_with_policy(&admin, &dao, "AddProposal")
+                .is_ok(),
+            "a *:* permission must grant any action"
+        );
+    }
+
+    /// The cache seam this PR exists for: `seed_treasury_policy` must make
+    /// `verify_can_perform_action` (which fetches the policy through the cache) resolve without
+    /// touching the network. If the seeded key didn't match `fetch_treasury_policy_cached`'s key,
+    /// this would miss the cache and RPC a non-existent test DAO and error — so a passing assertion
+    /// also proves the seed and fetch keys agree.
+    #[sqlx::test]
+    async fn seeded_policy_is_served_from_cache(pool: sqlx::PgPool) {
+        let state = Arc::new(build_test_state(pool));
+        let dao: AccountId = "test-dao.sputnik-dao.near".parse().unwrap();
+        seed_treasury_policy(
+            &state,
+            &dao,
+            policy_granting("alice.near", &["*:ChangePolicy"]),
+        )
+        .await;
+
+        let alice = AuthUser {
+            account_id: "alice.near".parse().unwrap(),
+        };
+        assert!(
+            alice
+                .verify_can_perform_action(&state, &dao, "ChangePolicy")
+                .await
+                .is_ok()
+        );
+    }
+}
