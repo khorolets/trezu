@@ -253,8 +253,11 @@ pub async fn create_proposal_template(
     Path(dao_id): Path<AccountId>,
     Json(req): Json<CreateProposalTemplateRequest>,
 ) -> Result<(StatusCode, Json<ProposalTemplate>), (StatusCode, String)> {
+    // Authoring a template defines a reusable on-chain action shape that members fill and execute,
+    // so gate writes on the DAO's policy-management permission (ChangePolicy) — reads/fills stay at
+    // membership. Unit-testable via `seed_treasury_policy`.
     auth_user
-        .verify_dao_member_for_http(&state.db_pool, &dao_id)
+        .verify_can_perform_action(&state, &dao_id, "ChangePolicy")
         .await?;
 
     let manifest = validate_manifest(&req.manifest).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
@@ -337,7 +340,7 @@ pub async fn update_proposal_template(
     Json(req): Json<UpdateProposalTemplateRequest>,
 ) -> Result<Json<ProposalTemplate>, (StatusCode, String)> {
     auth_user
-        .verify_dao_member_for_http(&state.db_pool, &dao_id)
+        .verify_can_perform_action(&state, &dao_id, "ChangePolicy")
         .await?;
 
     let manifest = match &req.manifest {
@@ -405,7 +408,7 @@ pub async fn delete_proposal_template(
     Path((dao_id, id)): Path<(AccountId, Uuid)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     auth_user
-        .verify_dao_member_for_http(&state.db_pool, &dao_id)
+        .verify_can_perform_action(&state, &dao_id, "ChangePolicy")
         .await?;
 
     let result = sqlx::query!(
@@ -430,7 +433,7 @@ mod tests {
         AppState,
         auth::{create_jwt, middleware::AUTH_COOKIE_NAME},
         routes::create_routes,
-        utils::test_utils::build_test_state,
+        utils::test_utils::{build_test_state, policy_granting, seed_treasury_policy},
     };
     use axum::{
         body::{Body, to_bytes},
@@ -491,6 +494,19 @@ mod tests {
         .execute(pool)
         .await
         .expect("seed policy member");
+    }
+
+    /// Seed an account that may author templates: a policy member (for reads/list) AND the
+    /// `ChangePolicy` permission (for create/update/delete writes).
+    async fn seed_author(state: &Arc<AppState>, pool: &PgPool, dao_id: &str, account_id: &str) {
+        seed_policy_member(pool, dao_id, account_id).await;
+        let dao: near_api::AccountId = dao_id.parse().expect("valid dao id");
+        seed_treasury_policy(
+            state,
+            &dao,
+            policy_granting(account_id, &["*:ChangePolicy"]),
+        )
+        .await;
     }
 
     async fn issue_auth_cookie(pool: &PgPool, state: &Arc<AppState>, account_id: &str) -> String {
@@ -601,7 +617,7 @@ mod tests {
         let app = create_routes(state.clone());
 
         let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
-        seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
+        seed_author(&state, &pool, DAO_ID, USER_ACCOUNT_ID).await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
         let mut manifest = valid_manifest();
@@ -623,7 +639,7 @@ mod tests {
         let app = create_routes(state.clone());
 
         let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
-        seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
+        seed_author(&state, &pool, DAO_ID, USER_ACCOUNT_ID).await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
         // CREATE
@@ -859,6 +875,15 @@ mod tests {
         // The DAO is fully onboarded (monitored + present in `daos`) and HAS a policy member
         // — just not our caller. So a 403 reflects a genuine non-member, not an unknown DAO.
         seed_policy_member(&pool, DAO_ID, "someone-else.near").await;
+        // Seed a policy (ChangePolicy to someone else) so the write endpoints reach a real 403
+        // rather than an RPC to a non-existent DAO.
+        let dao: near_api::AccountId = DAO_ID.parse().unwrap();
+        seed_treasury_policy(
+            &state,
+            &dao,
+            policy_granting("someone-else.near", &["*:ChangePolicy"]),
+        )
+        .await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
         let item = format!("{base}/{}", Uuid::new_v4());
@@ -884,13 +909,52 @@ mod tests {
         }
     }
 
+    /// A policy member who lacks `ChangePolicy` can read/list templates but cannot author them —
+    /// the read/write split the gate exists to enforce.
+    #[sqlx::test]
+    async fn test_member_without_change_policy_cannot_write(pool: PgPool) {
+        let state = test_state(pool.clone());
+        let app = create_routes(state.clone());
+        let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
+
+        // member.near is a policy member, but ChangePolicy is granted to someone else.
+        seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
+        let dao: near_api::AccountId = DAO_ID.parse().unwrap();
+        seed_treasury_policy(
+            &state,
+            &dao,
+            policy_granting("admin.near", &["*:ChangePolicy"]),
+        )
+        .await;
+        let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
+
+        // Reads are allowed (membership).
+        let (status, body) = send(app.clone(), "GET", base.clone(), &cookie, None).await;
+        assert_eq!(status, StatusCode::OK, "a member may list: {body}");
+
+        // Writes are not (no ChangePolicy).
+        let (status, _) = send(
+            app,
+            "POST",
+            base,
+            &cookie,
+            Some(json!({ "name": "X", "manifest": valid_manifest() })),
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::FORBIDDEN,
+            "a member without ChangePolicy cannot author"
+        );
+    }
+
     #[sqlx::test]
     async fn test_manifest_strings_are_normalized_on_store(pool: PgPool) {
         let state = test_state(pool.clone());
         let app = create_routes(state.clone());
         let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
 
-        seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
+        seed_author(&state, &pool, DAO_ID, USER_ACCOUNT_ID).await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
         let padded = json!({

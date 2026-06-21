@@ -43,7 +43,7 @@ export default function CustomTemplatesAboutPage() {
             description="The manifest DSL behind a custom proposal form."
             backButton
         >
-            <div className="mx-auto flex w-full max-w-[640px] flex-col gap-4">
+            <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
                 <Section title="What a manifest is">
                     <p>
                         A <strong>manifest</strong> is a JSON form definition. A
