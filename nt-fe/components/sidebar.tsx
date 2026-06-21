@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Plus } from "lucide-react";
 import { useNextStep } from "nextstepjs";
 import { useEffect, useState } from "react";
 import { SystemStatusBanner } from "@/components/system-status-banner";
@@ -353,13 +354,22 @@ export function Sidebar({ onClose }: SidebarProps) {
                         );
                     })}
 
-                    {customTemplates.length > 0 && (
+                    {(customTemplates.length > 0 || showLabels) && (
                         <div className="mt-2 flex flex-col gap-1">
                             {showLabels && (
                                 <div className="flex items-center justify-between px-3 pt-2">
-                                    <p className="font-medium text-muted-foreground text-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            router.push(
+                                                `/${treasuryId}/custom-templates`,
+                                            );
+                                            if (isMobile) onClose();
+                                        }}
+                                        className="cursor-pointer font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
+                                    >
                                         Custom
-                                    </p>
+                                    </button>
                                     <Button
                                         variant="link"
                                         size="icon-sm"
@@ -393,6 +403,21 @@ export function Sidebar({ onClose }: SidebarProps) {
                                     />
                                 );
                             })}
+                            {showLabels && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        router.push(
+                                            `/${treasuryId}/custom-templates/create`,
+                                        );
+                                        if (isMobile) onClose();
+                                    }}
+                                    className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-[5.5px] font-medium text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                                >
+                                    <Plus className="size-5 shrink-0" />
+                                    New template
+                                </button>
+                            )}
                         </div>
                     )}
                 </nav>
