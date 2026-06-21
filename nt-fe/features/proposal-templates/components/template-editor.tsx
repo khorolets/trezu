@@ -12,7 +12,7 @@ import { PageCard } from "@/components/card";
 import { InputBlock } from "@/components/input-block";
 import { LargeInput } from "@/components/large-input";
 import { Textarea } from "@/components/textarea";
-import { manifestErrorMessages, parseManifest } from "../manifest";
+import { validateManifestText } from "../manifest";
 
 const EXAMPLE = `{
   "version": 1,
@@ -30,31 +30,12 @@ const EXAMPLE = `{
   "args": { "amount": "{{amount}}" }
 }`;
 
-/** Validate the textarea JSON against the manifest schema: returns the parsed manifest or errors. */
-function validateManifestText(text: string): {
-    manifest?: unknown;
-    errors: string[];
-} {
-    if (!text.trim()) {
-        return { errors: [] };
-    }
-    let json: unknown;
-    try {
-        json = JSON.parse(text);
-    } catch {
-        return { errors: ["Manifest is not valid JSON"] };
-    }
-    const result = parseManifest(json);
-    if (!result.success) {
-        return { errors: manifestErrorMessages(result.error) };
-    }
-    return { manifest: result.data, errors: [] };
-}
-
 interface TemplateEditorProps {
     initialName?: string;
     initialManifestText?: string;
     submitLabel: string;
+    /** Label shown on the submit button while the mutation runs (defaults to "Saving…"). */
+    submittingLabel?: string;
     /** Called with the trimmed name and the validated manifest when the user submits. */
     onSubmit: (values: {
         name: string;
@@ -69,6 +50,7 @@ export function TemplateEditor({
     initialName = "",
     initialManifestText = "",
     submitLabel,
+    submittingLabel = "Saving…",
     onSubmit,
     submitting = false,
     footer,
@@ -118,7 +100,7 @@ export function TemplateEditor({
                     manifest && onSubmit({ name: name.trim(), manifest })
                 }
             >
-                {submitting ? "Saving…" : submitLabel}
+                {submitting ? submittingLabel : submitLabel}
             </Button>
 
             {footer}

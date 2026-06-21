@@ -52,6 +52,7 @@ export default function CreateTemplatePage() {
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
                 <TemplateEditor
                     submitLabel="Create template"
+                    submittingLabel="Creating…"
                     submitting={createTemplate.isPending}
                     onSubmit={handleCreate}
                 />

@@ -72,6 +72,7 @@ export default function EditTemplatePage() {
         if (!template || !treasuryId) {
             return;
         }
+        setConfirmingDelete(false);
         try {
             await deleteTemplate.mutateAsync(template.id);
             toast.success("Template deleted");
@@ -96,6 +97,7 @@ export default function EditTemplatePage() {
                     </PageCard>
                 ) : template ? (
                     <TemplateEditor
+                        key={template.id}
                         initialName={template.name}
                         initialManifestText={JSON.stringify(
                             template.manifest,
@@ -110,7 +112,10 @@ export default function EditTemplatePage() {
                                 type="button"
                                 variant="ghost"
                                 className="w-full text-destructive hover:text-destructive"
-                                disabled={updateTemplate.isPending}
+                                disabled={
+                                    updateTemplate.isPending ||
+                                    deleteTemplate.isPending
+                                }
                                 onClick={() => setConfirmingDelete(true)}
                             >
                                 Delete template

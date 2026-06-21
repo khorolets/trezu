@@ -364,3 +364,28 @@ export function manifestErrorMessages(error: z.ZodError): string[] {
         return path ? `${path}: ${issue.message}` : issue.message;
     });
 }
+
+/**
+ * Validate manifest JSON *text* (the authoring textarea): parse the JSON, then validate the shape.
+ * Returns the validated manifest on success, or human-readable error lines (invalid JSON, or schema
+ * issues). Empty/whitespace input yields no manifest and no errors — a pristine form, not an error.
+ */
+export function validateManifestText(text: string): {
+    manifest?: Manifest;
+    errors: string[];
+} {
+    if (!text.trim()) {
+        return { errors: [] };
+    }
+    let json: unknown;
+    try {
+        json = JSON.parse(text);
+    } catch {
+        return { errors: ["Manifest is not valid JSON"] };
+    }
+    const result = parseManifest(json);
+    if (!result.success) {
+        return { errors: manifestErrorMessages(result.error) };
+    }
+    return { manifest: result.data, errors: [] };
+}

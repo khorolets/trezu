@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTreasury } from "@/hooks/use-treasury";
+import { useNear } from "@/stores/near-store";
 import {
     type CreateProposalTemplateInput,
     createProposalTemplate,
@@ -8,19 +9,25 @@ import {
     updateProposalTemplate,
 } from "../api";
 
-/** Invalidate the current treasury's template list after any mutation. */
-function useInvalidateTemplates(treasuryId: string | undefined) {
+/**
+ * Invalidate the template list after a mutation, using the exact queryKey `useProposalTemplates`
+ * reads with (`["proposal-templates", treasuryId, accountId]`) so the invalidation is targeted
+ * rather than a prefix sweep of every account's cache for the treasury.
+ */
+function useInvalidateTemplates() {
     const queryClient = useQueryClient();
+    const { treasuryId } = useTreasury();
+    const { accountId } = useNear();
     return () =>
         queryClient.invalidateQueries({
-            queryKey: ["proposal-templates", treasuryId],
+            queryKey: ["proposal-templates", treasuryId, accountId],
         });
 }
 
 /** Create a proposal template for the current treasury, invalidating the list on success. */
 export function useCreateProposalTemplate() {
     const { treasuryId } = useTreasury();
-    const invalidate = useInvalidateTemplates(treasuryId);
+    const invalidate = useInvalidateTemplates();
 
     return useMutation({
         mutationFn: (input: CreateProposalTemplateInput) =>
@@ -32,7 +39,7 @@ export function useCreateProposalTemplate() {
 /** Update a template by id, invalidating the list on success. */
 export function useUpdateProposalTemplate() {
     const { treasuryId } = useTreasury();
-    const invalidate = useInvalidateTemplates(treasuryId);
+    const invalidate = useInvalidateTemplates();
 
     return useMutation({
         mutationFn: ({
@@ -49,7 +56,7 @@ export function useUpdateProposalTemplate() {
 /** Delete a template by id, invalidating the list on success. */
 export function useDeleteProposalTemplate() {
     const { treasuryId } = useTreasury();
-    const invalidate = useInvalidateTemplates(treasuryId);
+    const invalidate = useInvalidateTemplates();
 
     return useMutation({
         mutationFn: (id: string) =>
