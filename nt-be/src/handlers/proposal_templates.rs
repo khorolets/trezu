@@ -932,20 +932,25 @@ mod tests {
         let (status, body) = send(app.clone(), "GET", base.clone(), &cookie, None).await;
         assert_eq!(status, StatusCode::OK, "a member may list: {body}");
 
-        // Writes are not (no ChangePolicy).
-        let (status, _) = send(
-            app,
-            "POST",
-            base,
-            &cookie,
-            Some(json!({ "name": "X", "manifest": valid_manifest() })),
-        )
-        .await;
-        assert_eq!(
-            status,
-            StatusCode::FORBIDDEN,
-            "a member without ChangePolicy cannot author"
-        );
+        // ...but every write (create/update/delete) is rejected without ChangePolicy.
+        let item = format!("{base}/{}", Uuid::new_v4());
+        let writes: [(&str, String, Option<Value>); 3] = [
+            (
+                "POST",
+                base.clone(),
+                Some(json!({ "name": "X", "manifest": valid_manifest() })),
+            ),
+            ("PUT", item.clone(), Some(json!({ "enabled": true }))),
+            ("DELETE", item.clone(), None),
+        ];
+        for (method, uri, body) in writes {
+            let (status, _) = send(app.clone(), method, uri, &cookie, body).await;
+            assert_eq!(
+                status,
+                StatusCode::FORBIDDEN,
+                "{method} must be forbidden without ChangePolicy"
+            );
+        }
     }
 
     #[sqlx::test]
