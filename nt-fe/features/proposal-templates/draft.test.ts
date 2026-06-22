@@ -1,11 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import {
+    type ArgEntry,
     argNodeToJson,
     draftToManifest,
     emptyDraft,
     jsonToArgNode,
     jsonToDraft,
+    makeFieldDraft,
     manifestToDraft,
+    normalizeFields,
 } from "./draft";
 import { type Manifest, parseManifest } from "./manifest";
 
@@ -161,5 +164,68 @@ describe("jsonToDraft (lenient, for Code → Visual mid-edit)", () => {
     it("falls back gracefully for non-object input", () => {
         expect(jsonToDraft(null).fields).toEqual([]);
         expect(jsonToDraft("nope").id).toBe("");
+    });
+});
+
+describe("normalizeFields (args-first auto-derive)", () => {
+    function argsFrom(obj: Record<string, unknown>): ArgEntry[] {
+        const node = jsonToArgNode(obj);
+        return node.kind === "object" ? node.entries : [];
+    }
+
+    it("creates a field per new placeholder in args, with a Title-Cased label", () => {
+        const draft = normalizeFields({
+            ...emptyDraft(),
+            args: argsFrom({ amount: "{{amount}}", to: "{{tx_hash}}" }),
+        });
+        const byName = Object.fromEntries(
+            draft.fields.map((field) => [field.name, field]),
+        );
+        expect(Object.keys(byName).sort()).toEqual(["amount", "tx_hash"]);
+        expect(byName.tx_hash.label).toBe("Tx Hash");
+        expect(byName.amount.type).toBe("text");
+    });
+
+    it("picks up placeholders from the summary and composed strings", () => {
+        const draft = normalizeFields({
+            ...emptyDraft(),
+            summary: "Mint {{amount}}",
+            args: argsFrom({ msg: '{"to":"{{rcv}}"}' }),
+        });
+        expect(draft.fields.map((field) => field.name).sort()).toEqual([
+            "amount",
+            "rcv",
+        ]);
+    });
+
+    it("leaves an existing field and its config untouched", () => {
+        const existing = {
+            ...makeFieldDraft(),
+            name: "amount",
+            label: "Custom",
+            required: true,
+        };
+        const draft = normalizeFields({
+            ...emptyDraft(),
+            fields: [existing],
+            args: argsFrom({ amount: "{{amount}}" }),
+        });
+        expect(draft.fields).toHaveLength(1);
+        expect(draft.fields[0].label).toBe("Custom");
+        expect(draft.fields[0].required).toBe(true);
+    });
+
+    it("keeps unreferenced fields and returns the same reference when nothing changed", () => {
+        const normalized = normalizeFields({
+            ...emptyDraft(),
+            fields: [{ ...makeFieldDraft(), name: "unused", label: "Unused" }],
+            args: argsFrom({ amount: "{{amount}}" }),
+        });
+        expect(normalized.fields.map((field) => field.name).sort()).toEqual([
+            "amount",
+            "unused",
+        ]);
+        // Re-running with nothing new to add returns the same object (no needless re-render).
+        expect(normalizeFields(normalized)).toBe(normalized);
     });
 });

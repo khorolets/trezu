@@ -2,7 +2,9 @@ import { describe, expect, it } from "bun:test";
 import {
     changeType,
     duplicateArgKeys,
+    dynamicArgNames,
     emptyNodeOf,
+    isDynamicArg,
     resolveDisplayType,
     valueTypeOf,
 } from "./args-node";
@@ -115,6 +117,65 @@ describe("resolveDisplayType", () => {
         expect(resolveDisplayType({ kind: "number", value: 1 }, "text")).toBe(
             "number",
         );
+    });
+});
+
+describe("isDynamicArg / dynamicArgNames", () => {
+    it("flags an entry whose value is exactly {{key}}", () => {
+        expect(
+            isDynamicArg({
+                id: "1",
+                key: "amount",
+                value: { kind: "string", value: "{{amount}}" },
+            }),
+        ).toBe(true);
+    });
+
+    it("rejects a mismatched placeholder, composed text, blank key, or non-string", () => {
+        expect(
+            isDynamicArg({
+                id: "1",
+                key: "amount",
+                value: { kind: "string", value: "{{other}}" },
+            }),
+        ).toBe(false);
+        expect(
+            isDynamicArg({
+                id: "1",
+                key: "amount",
+                value: { kind: "string", value: "x {{amount}}" },
+            }),
+        ).toBe(false);
+        expect(
+            isDynamicArg({
+                id: "1",
+                key: "",
+                value: { kind: "string", value: "{{}}" },
+            }),
+        ).toBe(false);
+        expect(
+            isDynamicArg({
+                id: "1",
+                key: "amount",
+                value: { kind: "number", value: 1 },
+            }),
+        ).toBe(false);
+    });
+
+    it("collects the keys of dynamic arguments only", () => {
+        const entries: ArgEntry[] = [
+            {
+                id: "1",
+                key: "amount",
+                value: { kind: "string", value: "{{amount}}" },
+            },
+            {
+                id: "2",
+                key: "owner",
+                value: { kind: "string", value: "vault.near" },
+            },
+        ];
+        expect([...dynamicArgNames(entries)]).toEqual(["amount"]);
     });
 });
 
