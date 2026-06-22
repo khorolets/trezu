@@ -2,12 +2,15 @@
 
 /**
  * The Fields section of the visual constructor: an add/remove/reorder list of `FieldDraft` rows.
- * Each row edits one form input — name, label, type, and the type-appropriate extras (select
- * options, numeric min/max, text/number pattern, default). Type-incompatible extras are simply not
- * shown; `draftToField` also drops them on serialize, so a type switch can't strand invalid data.
+ * Each row edits one form input — name, label, type, required, and (for `select`) its options,
+ * which are always shown since they're mandatory. The optional extras — help, validation, default —
+ * sit behind a per-row "Advanced options" disclosure so simple fields stay compact; the disclosure
+ * auto-opens when that field has advanced config or a validation error. Errors render under the
+ * input they belong to (red field + message). Type-incompatible extras aren't shown; `draftToField`
+ * also drops them on serialize, so a type switch can't strand invalid data.
  */
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/button";
 import { Textarea } from "@/components/textarea";
 import { Input } from "@/components/ui/input";
@@ -21,39 +24,40 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import type { FieldDraft } from "../draft";
+import { type FieldDraft, makeFieldDraft } from "../draft";
+import { errorFor } from "../error-map";
 import { MANIFEST_FIELD_TYPES, type ManifestFieldType } from "../manifest";
-
-const NEW_FIELD: FieldDraft = {
-    name: "",
-    label: "",
-    type: "text",
-    required: false,
-    help: "",
-    default: undefined,
-    options: [],
-    validation: { min: "", max: "", pattern: "" },
-};
 
 const NUMERIC_TYPES: ManifestFieldType[] = ["uint", "amount", "number"];
 const PATTERN_TYPES: ManifestFieldType[] = ["text", "number"];
 
+function hasAdvanced(field: FieldDraft): boolean {
+    return Boolean(
+        field.help ||
+            field.default !== undefined ||
+            field.validation.min ||
+            field.validation.max ||
+            field.validation.pattern,
+    );
+}
+
 interface FieldsBuilderProps {
     fields: FieldDraft[];
+    errors: string[];
     onChange: (fields: FieldDraft[]) => void;
 }
 
-export function FieldsBuilder({ fields, onChange }: FieldsBuilderProps) {
+export function FieldsBuilder({
+    fields,
+    errors,
+    onChange,
+}: FieldsBuilderProps) {
     function updateField(index: number, patch: Partial<FieldDraft>) {
         onChange(
             fields.map((field, i) =>
                 i === index ? { ...field, ...patch } : field,
             ),
         );
-    }
-
-    function removeField(index: number) {
-        onChange(fields.filter((_, i) => i !== index));
     }
 
     function moveField(index: number, delta: number) {
@@ -70,14 +74,16 @@ export function FieldsBuilder({ fields, onChange }: FieldsBuilderProps) {
         <div className="flex flex-col gap-3">
             {fields.map((field, index) => (
                 <FieldRow
-                    // Rows are fully controlled (no internal state), so an index key is safe here.
-                    // biome-ignore lint/suspicious/noArrayIndexKey: controlled rows, no local state
-                    key={index}
+                    key={field.key}
                     field={field}
+                    path={`fields.${index}`}
+                    errors={errors}
                     canMoveUp={index > 0}
                     canMoveDown={index < fields.length - 1}
                     onChange={(patch) => updateField(index, patch)}
-                    onRemove={() => removeField(index)}
+                    onRemove={() =>
+                        onChange(fields.filter((_, i) => i !== index))
+                    }
                     onMove={(delta) => moveField(index, delta)}
                 />
             ))}
@@ -86,7 +92,7 @@ export function FieldsBuilder({ fields, onChange }: FieldsBuilderProps) {
                 variant="outline"
                 size="sm"
                 className="self-start"
-                onClick={() => onChange([...fields, { ...NEW_FIELD }])}
+                onClick={() => onChange([...fields, makeFieldDraft()])}
             >
                 <Plus className="size-4" /> Add field
             </Button>
@@ -96,6 +102,8 @@ export function FieldsBuilder({ fields, onChange }: FieldsBuilderProps) {
 
 interface FieldRowProps {
     field: FieldDraft;
+    path: string;
+    errors: string[];
     canMoveUp: boolean;
     canMoveDown: boolean;
     onChange: (patch: Partial<FieldDraft>) => void;
@@ -105,6 +113,8 @@ interface FieldRowProps {
 
 function FieldRow({
     field,
+    path,
+    errors,
     canMoveUp,
     canMoveDown,
     onChange,
@@ -116,6 +126,15 @@ function FieldRow({
     const allowsPattern = PATTERN_TYPES.includes(field.type);
     const showRequired = field.type !== "bool";
     const showDefault = field.type !== "bool" && field.type !== "json";
+
+    const minError = errorFor(errors, `${path}.validation.min`);
+    const maxError = errorFor(errors, `${path}.validation.max`);
+    const patternError = errorFor(errors, `${path}.validation.pattern`);
+    const defaultError = errorFor(errors, `${path}.default`);
+    const advancedError = minError || maxError || patternError || defaultError;
+
+    const [open, setOpen] = useState(() => hasAdvanced(field));
+    const showAdvanced = open || Boolean(advancedError);
 
     function setDefault(text: string) {
         if (text.trim() === "") {
@@ -139,32 +158,33 @@ function FieldRow({
         <div className="flex flex-col gap-3 rounded-xl bg-muted p-3">
             <div className="flex items-start gap-2">
                 <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3">
-                    <Labeled label="Name">
-                        <Input
-                            value={field.name}
-                            onChange={(event) =>
-                                onChange({ name: event.target.value })
-                            }
-                            placeholder="amount"
-                        />
-                    </Labeled>
-                    <Labeled label="Label">
-                        <Input
-                            value={field.label}
-                            onChange={(event) =>
-                                onChange({ label: event.target.value })
-                            }
-                            placeholder="Amount"
-                        />
-                    </Labeled>
+                    <LabeledInput
+                        label="Name"
+                        value={field.name}
+                        onChange={(value) => onChange({ name: value })}
+                        placeholder="greeting"
+                        error={errorFor(errors, `${path}.name`)}
+                    />
+                    <LabeledInput
+                        label="Label"
+                        value={field.label}
+                        onChange={(value) => onChange({ label: value })}
+                        placeholder="Greeting"
+                        error={errorFor(errors, `${path}.label`)}
+                    />
                     <Labeled label="Type">
                         <Select
                             value={field.type}
                             onValueChange={(value) =>
-                                // Clear the default on a type switch so it can't mismatch the new type.
+                                // Clear default on a type switch (can't mismatch the new type), and
+                                // clear `required` when moving to bool — it's not allowed there and
+                                // the bool row has no Required switch to clear it from.
                                 onChange({
                                     type: value as ManifestFieldType,
                                     default: undefined,
+                                    ...(value === "bool"
+                                        ? { required: false }
+                                        : {}),
                                 })
                             }
                         >
@@ -212,31 +232,20 @@ function FieldRow({
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4">
-                {showRequired ? (
-                    <div className="flex items-center gap-2">
-                        <Switch
-                            id={requiredId}
-                            checked={field.required}
-                            onCheckedChange={(checked) =>
-                                onChange({ required: checked })
-                            }
-                        />
-                        <Label htmlFor={requiredId} className="text-sm">
-                            Required
-                        </Label>
-                    </div>
-                ) : null}
-                <Labeled label="Help" className="min-w-[160px] flex-1">
-                    <Input
-                        value={field.help}
-                        onChange={(event) =>
-                            onChange({ help: event.target.value })
+            {showRequired ? (
+                <div className="flex items-center gap-2">
+                    <Switch
+                        id={requiredId}
+                        checked={field.required}
+                        onCheckedChange={(checked) =>
+                            onChange({ required: checked })
                         }
-                        placeholder="Shown under the input"
                     />
-                </Labeled>
-            </div>
+                    <Label htmlFor={requiredId} className="text-sm">
+                        Required
+                    </Label>
+                </div>
+            ) : null}
 
             {field.type === "select" ? (
                 <Labeled label="Options (one per line)">
@@ -244,6 +253,11 @@ function FieldRow({
                         rows={3}
                         className="font-mono text-xs"
                         value={field.options.join("\n")}
+                        aria-invalid={
+                            errorFor(errors, `${path}.options`)
+                                ? true
+                                : undefined
+                        }
                         onChange={(event) =>
                             onChange({
                                 options: event.target.value
@@ -252,64 +266,113 @@ function FieldRow({
                                     .filter(Boolean),
                             })
                         }
-                        placeholder={"eth\nbase"}
+                        placeholder={"option-a\noption-b"}
                     />
+                    <FieldError message={errorFor(errors, `${path}.options`)} />
                 </Labeled>
             ) : null}
 
-            {isNumeric || allowsPattern ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <button
+                type="button"
+                onClick={() => setOpen((value) => !value)}
+                className="flex items-center gap-1 self-start text-muted-foreground text-xs transition-colors hover:text-foreground"
+            >
+                {showAdvanced ? (
+                    <ChevronUp className="size-3.5" />
+                ) : (
+                    <ChevronDown className="size-3.5" />
+                )}
+                Advanced options
+            </button>
+
+            {showAdvanced ? (
+                <div className="flex flex-col gap-3 border-t pt-3">
+                    <LabeledInput
+                        label="Help"
+                        value={field.help}
+                        onChange={(value) => onChange({ help: value })}
+                        placeholder="Shown under the input"
+                    />
+
                     {isNumeric ? (
-                        <>
-                            <Labeled label="Min">
-                                <Input
-                                    value={field.validation.min}
-                                    onChange={(event) =>
-                                        setValidation({
-                                            min: event.target.value,
-                                        })
-                                    }
-                                    placeholder="0"
-                                />
-                            </Labeled>
-                            <Labeled label="Max">
-                                <Input
-                                    value={field.validation.max}
-                                    onChange={(event) =>
-                                        setValidation({
-                                            max: event.target.value,
-                                        })
-                                    }
-                                />
-                            </Labeled>
-                        </>
-                    ) : null}
-                    {allowsPattern ? (
-                        <Labeled label="Pattern (regex)">
-                            <Input
-                                value={field.validation.pattern}
-                                onChange={(event) =>
-                                    setValidation({
-                                        pattern: event.target.value,
-                                    })
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            <LabeledInput
+                                label="Min"
+                                value={field.validation.min}
+                                onChange={(value) =>
+                                    setValidation({ min: value })
                                 }
-                                placeholder="^0x"
+                                placeholder="0"
+                                error={minError}
                             />
-                        </Labeled>
+                            <LabeledInput
+                                label="Max"
+                                value={field.validation.max}
+                                onChange={(value) =>
+                                    setValidation({ max: value })
+                                }
+                                error={maxError}
+                            />
+                        </div>
+                    ) : null}
+
+                    {allowsPattern ? (
+                        <LabeledInput
+                            label="Pattern (regex)"
+                            value={field.validation.pattern}
+                            onChange={(value) =>
+                                setValidation({ pattern: value })
+                            }
+                            placeholder="^[A-Za-z]"
+                            error={patternError}
+                        />
+                    ) : null}
+
+                    {showDefault ? (
+                        <LabeledInput
+                            label="Default (optional)"
+                            value={String(field.default ?? "")}
+                            onChange={setDefault}
+                            error={defaultError}
+                        />
                     ) : null}
                 </div>
             ) : null}
-
-            {showDefault ? (
-                <Labeled label="Default (optional)">
-                    <Input
-                        value={String(field.default ?? "")}
-                        onChange={(event) => setDefault(event.target.value)}
-                    />
-                </Labeled>
-            ) : null}
         </div>
     );
+}
+
+export function LabeledInput({
+    label,
+    value,
+    onChange,
+    placeholder,
+    error,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    error?: string;
+}) {
+    return (
+        <Labeled label={label}>
+            <Input
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                placeholder={placeholder}
+                aria-invalid={error ? true : undefined}
+            />
+            <FieldError message={error} />
+        </Labeled>
+    );
+}
+
+export function FieldError({ message }: { message?: string }) {
+    if (!message) {
+        return null;
+    }
+    return <p className="text-destructive text-xs">{message}</p>;
 }
 
 export function Labeled({

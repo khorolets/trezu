@@ -10,7 +10,11 @@
  * Round-trip is the contract: `draftToManifest(manifestToDraft(m))` re-parses to `m`. The unit tests
  * pin that for the mint template, every field type, validations, and the optional meta fields.
  */
-import type { Manifest, ManifestField, ManifestFieldType } from "./manifest";
+import {
+    MANIFEST_FIELD_TYPES,
+    type Manifest,
+    type ManifestFieldType,
+} from "./manifest";
 
 /**
  * A node in the `args` tree — an editable mirror of a JSON value. String leaves may embed
@@ -19,15 +23,37 @@ import type { Manifest, ManifestField, ManifestFieldType } from "./manifest";
  */
 export type ArgNode =
     | { kind: "object"; entries: ArgEntry[] }
-    | { kind: "array"; items: ArgNode[] }
+    | { kind: "array"; items: ArgItem[] }
     | { kind: "string"; value: string }
     | { kind: "number"; value: number }
     | { kind: "boolean"; value: boolean }
     | { kind: "null" };
 
+/** A keyed object entry. `id` is a stable client id for React keys; never serialized. */
 export interface ArgEntry {
+    id: string;
     key: string;
     value: ArgNode;
+}
+
+/** A keyed array item. `id` is a stable client id for React keys; never serialized. */
+export interface ArgItem {
+    id: string;
+    value: ArgNode;
+}
+
+/** A fresh args object entry for the builder's "Add key". */
+export function makeArgEntry(): ArgEntry {
+    return {
+        id: crypto.randomUUID(),
+        key: "",
+        value: { kind: "string", value: "" },
+    };
+}
+
+/** A fresh args array item wrapping `value`, for the builder's "Add item". */
+export function makeArgItem(value: ArgNode): ArgItem {
+    return { id: crypto.randomUUID(), value };
 }
 
 /** Build an args node from a parsed JSON value. */
@@ -45,13 +71,23 @@ export function jsonToArgNode(value: unknown): ArgNode {
         return { kind: "boolean", value };
     }
     if (Array.isArray(value)) {
-        return { kind: "array", items: value.map(jsonToArgNode) };
+        return {
+            kind: "array",
+            items: value.map((item) => ({
+                id: crypto.randomUUID(),
+                value: jsonToArgNode(item),
+            })),
+        };
     }
     if (typeof value === "object") {
         return {
             kind: "object",
             entries: Object.entries(value as Record<string, unknown>).map(
-                ([key, child]) => ({ key, value: jsonToArgNode(child) }),
+                ([key, child]) => ({
+                    id: crypto.randomUUID(),
+                    key,
+                    value: jsonToArgNode(child),
+                }),
             ),
         };
     }
@@ -71,7 +107,7 @@ export function argNodeToJson(node: ArgNode): unknown {
         case "boolean":
             return node.value;
         case "array":
-            return node.items.map(argNodeToJson);
+            return node.items.map((item) => argNodeToJson(item.value));
         case "object":
             return argEntriesToJson(node.entries);
     }
@@ -87,6 +123,8 @@ function argEntriesToJson(entries: ArgEntry[]): Record<string, unknown> {
 
 /** A field row in the builder. Optional manifest bits become empty strings / `[]` / `undefined`. */
 export interface FieldDraft {
+    /** Stable client-side id for React keys + per-row UI state. Never serialized to the manifest. */
+    key: string;
     name: string;
     label: string;
     type: ManifestFieldType;
@@ -116,6 +154,21 @@ export interface ManifestDraft {
     args: ArgEntry[];
 }
 
+/** A blank field row (with a fresh client key) for the builder's "Add field". */
+export function makeFieldDraft(): FieldDraft {
+    return {
+        key: crypto.randomUUID(),
+        name: "",
+        label: "",
+        type: "text",
+        required: false,
+        help: "",
+        default: undefined,
+        options: [],
+        validation: { min: "", max: "", pattern: "" },
+    };
+}
+
 /** A blank draft for a new template (sensible gas/deposit defaults; everything else empty). */
 export function emptyDraft(): ManifestDraft {
     return {
@@ -135,19 +188,45 @@ export function emptyDraft(): ManifestDraft {
     };
 }
 
-function fieldToDraft(field: ManifestField): FieldDraft {
+function asString(value: unknown): string {
+    return typeof value === "string" ? value : "";
+}
+
+function isManifestFieldType(value: unknown): value is ManifestFieldType {
+    return (
+        typeof value === "string" &&
+        (MANIFEST_FIELD_TYPES as readonly string[]).includes(value)
+    );
+}
+
+/** Best-effort field draft from arbitrary JSON: unknown/blank bits become safe defaults. */
+function rawFieldToDraft(value: unknown): FieldDraft {
+    const field = (value && typeof value === "object" ? value : {}) as Record<
+        string,
+        unknown
+    >;
+    const validation = (
+        field.validation && typeof field.validation === "object"
+            ? field.validation
+            : {}
+    ) as Record<string, unknown>;
     return {
-        name: field.name,
-        label: field.label,
-        type: field.type,
-        required: field.required ?? false,
-        help: field.help ?? "",
+        key: crypto.randomUUID(),
+        name: asString(field.name),
+        label: asString(field.label),
+        type: isManifestFieldType(field.type) ? field.type : "text",
+        required: field.required === true,
+        help: asString(field.help),
         default: field.default,
-        options: field.options ?? [],
+        options: Array.isArray(field.options)
+            ? field.options.filter(
+                  (option): option is string => typeof option === "string",
+              )
+            : [],
         validation: {
-            min: field.validation?.min ?? "",
-            max: field.validation?.max ?? "",
-            pattern: field.validation?.pattern ?? "",
+            min: asString(validation.min),
+            max: asString(validation.max),
+            pattern: asString(validation.pattern),
         },
     };
 }
@@ -184,24 +263,43 @@ function draftToField(field: FieldDraft): Record<string, unknown> {
     };
 }
 
-/** Hydrate a draft from a validated manifest (e.g. when switching Code → Visual). */
-export function manifestToDraft(manifest: Manifest): ManifestDraft {
-    const argsNode = jsonToArgNode(manifest.args);
+/**
+ * Build a draft from arbitrary parsed JSON — tolerant of a partial or invalid manifest so switching
+ * Code → Visual works mid-edit (an empty id, missing binding, etc. hydrate as blanks). Only the JSON
+ * syntax has to be valid; the visual builder then surfaces what's still incomplete.
+ */
+export function jsonToDraft(value: unknown): ManifestDraft {
+    const root = (
+        value && typeof value === "object" && !Array.isArray(value) ? value : {}
+    ) as Record<string, unknown>;
+    const binding = (
+        root.binding && typeof root.binding === "object" ? root.binding : {}
+    ) as Record<string, unknown>;
+    const argsNode = jsonToArgNode(
+        root.args && typeof root.args === "object" ? root.args : {},
+    );
     return {
-        id: manifest.id,
-        title: manifest.title,
-        description: manifest.description ?? "",
-        icon: manifest.icon ?? "",
-        summary: manifest.summary ?? "",
+        id: asString(root.id),
+        title: asString(root.title),
+        description: asString(root.description),
+        icon: asString(root.icon),
+        summary: asString(root.summary),
         binding: {
-            receiver_id: manifest.binding.receiver_id,
-            method_name: manifest.binding.method_name,
-            deposit: manifest.binding.deposit,
-            gas: manifest.binding.gas,
+            receiver_id: asString(binding.receiver_id),
+            method_name: asString(binding.method_name),
+            deposit: asString(binding.deposit) || "0",
+            gas: asString(binding.gas) || "30000000000000",
         },
-        fields: manifest.fields.map(fieldToDraft),
+        fields: Array.isArray(root.fields)
+            ? root.fields.map(rawFieldToDraft)
+            : [],
         args: argsNode.kind === "object" ? argsNode.entries : [],
     };
+}
+
+/** Hydrate a draft from a validated manifest (e.g. the initial edit state). */
+export function manifestToDraft(manifest: Manifest): ManifestDraft {
+    return jsonToDraft(manifest);
 }
 
 /**

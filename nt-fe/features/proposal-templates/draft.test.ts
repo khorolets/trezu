@@ -4,6 +4,7 @@ import {
     draftToManifest,
     emptyDraft,
     jsonToArgNode,
+    jsonToDraft,
     manifestToDraft,
 } from "./draft";
 import { type Manifest, parseManifest } from "./manifest";
@@ -139,5 +140,26 @@ describe("manifestToDraft / draftToManifest", () => {
         expect("description" in manifest).toBe(false);
         expect("icon" in manifest).toBe(false);
         expect("summary" in manifest).toBe(false);
+    });
+});
+
+describe("jsonToDraft (lenient, for Code → Visual mid-edit)", () => {
+    it("tolerates a partial manifest, filling blanks and gas/deposit defaults", () => {
+        const draft = jsonToDraft({ id: "x", fields: [{ name: "a" }] });
+        expect(draft.id).toBe("x");
+        expect(draft.title).toBe("");
+        expect(draft.binding.receiver_id).toBe("");
+        expect(draft.binding.deposit).toBe("0");
+        expect(draft.binding.gas).toBe("30000000000000");
+        expect(draft.fields).toHaveLength(1);
+        expect(draft.fields[0].name).toBe("a");
+        // An unknown/missing field type degrades to "text" rather than throwing.
+        expect(draft.fields[0].type).toBe("text");
+        expect(draft.args).toEqual([]);
+    });
+
+    it("falls back gracefully for non-object input", () => {
+        expect(jsonToDraft(null).fields).toEqual([]);
+        expect(jsonToDraft("nope").id).toBe("");
     });
 });

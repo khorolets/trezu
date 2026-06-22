@@ -18,11 +18,12 @@ import { InputBlock } from "@/components/input-block";
 import { LargeInput } from "@/components/large-input";
 import { TabGroup } from "@/components/tab-group";
 import { Textarea } from "@/components/textarea";
+import { duplicateArgKeys } from "../args-node";
 import {
     draftToManifest,
     emptyDraft,
+    jsonToDraft,
     type ManifestDraft,
-    manifestToDraft,
 } from "../draft";
 import {
     type Manifest,
@@ -34,18 +35,20 @@ import { VisualBuilder } from "./visual-builder";
 
 const EXAMPLE = `{
   "version": 1,
-  "id": "my-template",
-  "title": "My Template",
+  "id": "set-greeting",
+  "title": "Set Greeting",
+  "description": "Update the greeting shown on a guest-book contract.",
   "binding": {
-    "receiver_id": "contract.near",
-    "method_name": "some_method",
+    "receiver_id": "guestbook.near",
+    "method_name": "set_greeting",
     "deposit": "0",
     "gas": "30000000000000"
   },
   "fields": [
-    { "name": "amount", "label": "Amount", "type": "uint", "required": true }
+    { "name": "greeting", "label": "Greeting", "type": "text", "required": true, "help": "The new message" }
   ],
-  "args": { "amount": "{{amount}}" }
+  "args": { "greeting": "{{greeting}}" },
+  "summary": "Set greeting to {{greeting}}"
 }`;
 
 type Mode = "visual" | "code";
@@ -56,10 +59,45 @@ function manifestFromDraft(draft: ManifestDraft): {
     errors: string[];
 } {
     const parsed = parseManifest(draftToManifest(draft));
-    if (!parsed.success) {
-        return { errors: manifestErrorMessages(parsed.error) };
+    const baseErrors = parsed.success
+        ? []
+        : manifestErrorMessages(parsed.error);
+    // Duplicate args keys collapse on serialize (last-write-wins), so parseManifest can't see them;
+    // detect them on the draft and block save with a visible error in the Arguments section.
+    const dupeErrors = duplicateArgKeys(draft.args).map(({ path, key }) => {
+        const where = path ? `args.${path}` : "args";
+        return `${where}: duplicate argument key "${key}" — only the last is kept`;
+    });
+    const errors = [...baseErrors, ...dupeErrors];
+    if (parsed.success && dupeErrors.length === 0) {
+        return { manifest: parsed.data, errors };
     }
-    return { manifest: parsed.data, errors: [] };
+    return { errors };
+}
+
+/** Empty text (a new template) or any syntactically valid JSON may open in Visual mode. */
+function isParseableJson(text: string): boolean {
+    if (!text.trim()) {
+        return true;
+    }
+    try {
+        JSON.parse(text);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** Hydrate the initial draft leniently; blank or unparseable text falls back to an empty draft. */
+function parseDraft(text: string): ManifestDraft {
+    if (!text.trim()) {
+        return emptyDraft();
+    }
+    try {
+        return jsonToDraft(JSON.parse(text));
+    } catch {
+        return emptyDraft();
+    }
 }
 
 interface TemplateEditorProps {
@@ -91,19 +129,11 @@ export function TemplateEditor({
     const [manifestText, setManifestText] = useState(initialManifestText);
     // Default to Visual; fall back to Code only when editing a manifest that doesn't parse.
     const [mode, setMode] = useState<Mode>(() =>
-        !initialManifestText ||
-        validateManifestText(initialManifestText).manifest
-            ? "visual"
-            : "code",
+        isParseableJson(initialManifestText) ? "visual" : "code",
     );
-    const [draft, setDraft] = useState<ManifestDraft>(() => {
-        const parsed = initialManifestText
-            ? validateManifestText(initialManifestText)
-            : { manifest: undefined };
-        return parsed.manifest
-            ? manifestToDraft(parsed.manifest)
-            : emptyDraft();
-    });
+    const [draft, setDraft] = useState<ManifestDraft>(() =>
+        parseDraft(initialManifestText),
+    );
     // Suppress the error list until the author edits, so a blank new template isn't a wall of red.
     const [touched, setTouched] = useState(false);
 
@@ -120,14 +150,16 @@ export function TemplateEditor({
             return;
         }
         if (target === "visual") {
-            const parsed = validateManifestText(manifestText);
-            if (!parsed.manifest) {
+            let parsed: unknown;
+            try {
+                parsed = manifestText.trim() ? JSON.parse(manifestText) : {};
+            } catch {
                 toast.error(
-                    "Fix the manifest errors before switching to the visual builder",
+                    "Fix the invalid JSON before switching to the visual builder",
                 );
                 return;
             }
-            setDraft(manifestToDraft(parsed.manifest));
+            setDraft(jsonToDraft(parsed));
             setMode("visual");
             return;
         }
@@ -143,7 +175,7 @@ export function TemplateEditor({
                     borderless
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    placeholder="Recovery Mint"
+                    placeholder="Set Greeting"
                 />
             </InputBlock>
 
@@ -173,6 +205,7 @@ export function TemplateEditor({
             ) : (
                 <VisualBuilder
                     draft={draft}
+                    errors={showErrors ? errors : []}
                     onChange={(next) => {
                         setDraft(next);
                         setTouched(true);
@@ -180,7 +213,7 @@ export function TemplateEditor({
                 />
             )}
 
-            {showErrors ? (
+            {mode === "code" && showErrors ? (
                 <ul className="list-disc pl-5 text-destructive text-sm">
                     {errors.map((message) => (
                         <li key={message}>{message}</li>

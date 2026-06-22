@@ -19,6 +19,24 @@ const FIELD_TYPES: { type: string; renders: string }[] = [
     { type: "json", renders: "JSON text" },
 ];
 
+const EXAMPLE_MANIFEST = `{
+  "version": 1,
+  "id": "set-greeting",
+  "title": "Set Greeting",
+  "description": "Update the greeting shown on a guest-book contract.",
+  "binding": {
+    "receiver_id": "guestbook.near",
+    "method_name": "set_greeting",
+    "deposit": "0",
+    "gas": "30000000000000"
+  },
+  "fields": [
+    { "name": "greeting", "label": "Greeting", "type": "text", "required": true }
+  ],
+  "args": { "greeting": "{{greeting}}" },
+  "summary": "Set greeting to {{greeting}}"
+}`;
+
 function Section({
     title,
     children,
@@ -52,6 +70,17 @@ export default function CustomTemplatesAboutPage() {
                         <code>FunctionCall</code> proposal — which still passes
                         the DAO&apos;s on-chain permissions and approvals.
                     </p>
+                </Section>
+
+                <Section title="A simple example">
+                    <p>
+                        A minimal template — one text field wired into a{" "}
+                        <code>set_greeting</code> call. Paste it into the Code
+                        tab of a new template to try it, then switch to Visual:
+                    </p>
+                    <pre className="overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">
+                        {EXAMPLE_MANIFEST}
+                    </pre>
                 </Section>
 
                 <Section title="Top-level shape">
