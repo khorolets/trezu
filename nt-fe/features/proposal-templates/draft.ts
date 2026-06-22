@@ -8,7 +8,7 @@
  * with code mode and can never emit a shape the backend would reject.
  *
  * Round-trip is the contract: `draftToManifest(manifestToDraft(m))` re-parses to `m`. The unit tests
- * pin that for the mint template, every field type, validations, and the optional meta fields.
+ * pin that for a representative template, every field type, validations, and optional meta fields.
  */
 import {
     MANIFEST_FIELD_TYPES,
@@ -326,7 +326,7 @@ export function draftToManifest(draft: ManifestDraft): Record<string, unknown> {
     };
 }
 
-/** "recovery_mint" / "tx-hash" → "Recovery Mint" / "Tx Hash" — a readable default label. */
+/** "first_name" / "tx-hash" → "First Name" / "Tx Hash" — a readable default label. */
 function titleCase(name: string): string {
     return name
         .replace(/[_-]+/g, " ")

@@ -263,7 +263,7 @@ pub async fn create_proposal_template(
     let manifest = validate_manifest(&req.manifest).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     // Normalize name/description like the manifest's own strings, so whitespace variants
-    // ("Recovery Mint" vs " Recovery Mint ") can't slip past the unique (dao_id, name) index.
+    // ("Guestbook Tip" vs " Guestbook Tip ") can't slip past the unique (dao_id, name) index.
     let name = req.name.trim().to_string();
     if name.is_empty() {
         return Err((
@@ -455,13 +455,13 @@ mod tests {
     fn valid_manifest() -> Value {
         json!({
             "version": 1,
-            "id": "ni-recovery-mint",
-            "title": "Recovery Mint",
-            "binding": { "receiver_id": "omft.near", "method_name": "ft_deposit",
-                         "deposit": "1250000000000000000000", "gas": "150000000000000" },
+            "id": "guestbook-tip",
+            "title": "Guestbook Tip",
+            "binding": { "receiver_id": "guestbook.near", "method_name": "add_message",
+                         "deposit": "1", "gas": "30000000000000" },
             "fields": [{ "name": "amount", "label": "Amount", "type": "uint", "required": true }],
             "args": { "amount": "{{amount}}" },
-            "summary": "Mint {{amount}}"
+            "summary": "Tip {{amount}}"
         })
     }
 
@@ -648,7 +648,7 @@ mod tests {
             "POST",
             base.clone(),
             &cookie,
-            Some(json!({ "name": "Recovery Mint", "manifest": valid_manifest() })),
+            Some(json!({ "name": "Guestbook Tip", "manifest": valid_manifest() })),
         )
         .await;
         assert_eq!(status, StatusCode::CREATED, "create should succeed: {body}");
@@ -668,7 +668,7 @@ mod tests {
             "POST",
             base.clone(),
             &cookie,
-            Some(json!({ "name": "Recovery Mint", "manifest": valid_manifest() })),
+            Some(json!({ "name": "Guestbook Tip", "manifest": valid_manifest() })),
         )
         .await;
         assert_eq!(status, StatusCode::CONFLICT);
@@ -756,12 +756,12 @@ mod tests {
             "PUT",
             item.clone(),
             &cookie,
-            Some(json!({ "name": "Recovery Mint v2", "enabled": false })),
+            Some(json!({ "name": "Guestbook Tip v2", "enabled": false })),
         )
         .await;
         assert_eq!(status, StatusCode::OK);
         let updated: Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(updated["name"].as_str(), Some("Recovery Mint v2"));
+        assert_eq!(updated["name"].as_str(), Some("Guestbook Tip v2"));
         assert_eq!(updated["enabled"].as_bool(), Some(false));
         // Fields omitted from the body must be preserved (COALESCE), not cleared/overwritten.
         assert!(
@@ -802,7 +802,7 @@ mod tests {
         );
         assert_eq!(
             updated["name"].as_str(),
-            Some("Recovery Mint v2"),
+            Some("Guestbook Tip v2"),
             "name must be preserved when only description is updated"
         );
 
@@ -964,9 +964,9 @@ mod tests {
 
         let padded = json!({
             "version": 1,
-            "id": "  ni-recovery-mint  ",
-            "title": "  Recovery Mint  ",
-            "binding": { "receiver_id": "  omft.near  ", "method_name": "  ft_deposit  " },
+            "id": "  guestbook-tip  ",
+            "title": "  Guestbook Tip  ",
+            "binding": { "receiver_id": "  guestbook.near  ", "method_name": "  add_message  " },
             "fields": [],
             "args": {}
         });
@@ -982,10 +982,10 @@ mod tests {
 
         let created: Value = serde_json::from_str(&body).unwrap();
         let m = &created["manifest"];
-        assert_eq!(m["id"].as_str(), Some("ni-recovery-mint"));
-        assert_eq!(m["title"].as_str(), Some("Recovery Mint"));
-        assert_eq!(m["binding"]["receiver_id"].as_str(), Some("omft.near"));
-        assert_eq!(m["binding"]["method_name"].as_str(), Some("ft_deposit"));
+        assert_eq!(m["id"].as_str(), Some("guestbook-tip"));
+        assert_eq!(m["title"].as_str(), Some("Guestbook Tip"));
+        assert_eq!(m["binding"]["receiver_id"].as_str(), Some("guestbook.near"));
+        assert_eq!(m["binding"]["method_name"].as_str(), Some("add_message"));
     }
 
     #[sqlx::test]

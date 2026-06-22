@@ -8,7 +8,7 @@
  * checked. v1 substitution is string-based: every `{{field}}` resolves to a string (NEAR amounts
  * stay digit strings, so u128 values never round-trip through a JS number). Typed JSON injection
  * (a `bool`/`json` field landing as a raw value rather than a string) is a deliberate non-goal here
- * — the recovery-mint template, and every v1 binding, expresses its args as strings.
+ * — every v1 binding expresses its args as strings.
  */
 import type { FunctionCallKind } from "@/lib/proposals-api";
 import { encodeToMarkdown, jsonToBase64 } from "@/lib/utils";

@@ -19,7 +19,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import {
     ARG_VALUE_TYPES,
     type ArgValueType,
@@ -211,9 +210,7 @@ function TopEntryRow({
                     variant="ghost"
                     size="icon-sm"
                     className="text-destructive hover:text-destructive"
-                    onClick={() =>
-                        setArgs(args.filter((_, i) => i !== index))
-                    }
+                    onClick={() => setArgs(args.filter((_, i) => i !== index))}
                 >
                     <Trash2 className="size-4" />
                 </Button>
@@ -281,7 +278,11 @@ function StaticValue({
                     ))}
                 </SelectContent>
             </Select>
-            <StaticLeaf node={node} fieldNames={fieldNames} onChange={onChange} />
+            <StaticLeaf
+                node={node}
+                fieldNames={fieldNames}
+                onChange={onChange}
+            />
         </div>
     );
 }

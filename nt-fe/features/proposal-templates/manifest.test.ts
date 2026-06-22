@@ -8,30 +8,30 @@ import {
 
 const validManifest = {
     version: 1,
-    id: "ni-recovery-mint",
-    title: "Recovery Mint",
+    id: "guestbook-tip",
+    title: "Guestbook Tip",
     binding: {
-        receiver_id: "omft.near",
-        method_name: "ft_deposit",
-        deposit: "1250000000000000000000",
-        gas: "150000000000000",
+        receiver_id: "guestbook.near",
+        method_name: "add_message",
+        deposit: "1",
+        gas: "30000000000000",
     },
     fields: [{ name: "amount", label: "Amount", type: "uint", required: true }],
     args: { amount: "{{amount}}" },
-    summary: "Mint {{amount}}",
+    summary: "Tip {{amount}}",
 };
 
 describe("parseManifest", () => {
     it("accepts a valid manifest and trims its string fields", () => {
         const result = parseManifest({
             ...validManifest,
-            id: "  ni-recovery-mint  ",
-            title: "  Recovery Mint  ",
+            id: "  guestbook-tip  ",
+            title: "  Guestbook Tip  ",
         });
         expect(result.success).toBe(true);
         if (result.success) {
-            expect(result.data.id).toBe("ni-recovery-mint");
-            expect(result.data.title).toBe("Recovery Mint");
+            expect(result.data.id).toBe("guestbook-tip");
+            expect(result.data.title).toBe("Guestbook Tip");
         }
     });
 
@@ -48,7 +48,7 @@ describe("parseManifest", () => {
     it("rejects a missing binding field", () => {
         const result = parseManifest({
             ...validManifest,
-            binding: { method_name: "ft_deposit", deposit: "1", gas: "1" },
+            binding: { method_name: "add_message", deposit: "1", gas: "1" },
         });
         expect(result.success).toBe(false);
     });
@@ -106,7 +106,7 @@ describe("parseManifest", () => {
     it("attributes a dangling summary placeholder to `summary`, not `args`", () => {
         const result = parseManifest({
             ...validManifest,
-            summary: "Mint {{amount}} to {{missing}}",
+            summary: "Tip {{amount}} to {{missing}}",
         });
         expect(result.success).toBe(false);
         if (!result.success) {
@@ -400,9 +400,9 @@ describe("validateManifestText", () => {
 
     it("returns the parsed (and trimmed) manifest on success", () => {
         const result = validateManifestText(
-            JSON.stringify({ ...validManifest, id: "  demo-mint  " }),
+            JSON.stringify({ ...validManifest, id: "  demo-tip  " }),
         );
         expect(result.errors).toEqual([]);
-        expect(result.manifest?.id).toBe("demo-mint");
+        expect(result.manifest?.id).toBe("demo-tip");
     });
 });

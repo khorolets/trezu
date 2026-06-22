@@ -12,28 +12,28 @@ import {
 } from "./draft";
 import { type Manifest, parseManifest } from "./manifest";
 
-const mint = {
+const guestbook = {
     version: 1,
-    id: "demo-mint",
-    title: "Demo Mint",
+    id: "guestbook-tip",
+    title: "Guestbook Tip",
     binding: {
-        receiver_id: "stft.near",
-        method_name: "ft_deposit",
-        deposit: "1250000000000000000000",
-        gas: "150000000000000",
+        receiver_id: "guestbook.near",
+        method_name: "add_message",
+        deposit: "1",
+        gas: "30000000000000",
     },
     fields: [
-        { name: "token", label: "Token", type: "token" },
-        { name: "amount", label: "Amount", type: "uint", required: true },
-        { name: "receiver", label: "Receiver", type: "text", required: true },
+        { name: "message", label: "Message", type: "text" },
+        { name: "tip", label: "Tip", type: "uint", required: true },
+        { name: "author", label: "Author", type: "account", required: true },
     ],
     args: {
-        owner_id: "staging-intents.near",
-        token: "{{token}}",
-        amount: "{{amount}}",
-        msg: '{"receiver_id":"{{receiver}}"}',
+        app: "trezu",
+        text: "{{message}}",
+        amount: "{{tip}}",
+        meta: '{"by":"{{author}}"}',
     },
-    summary: "Mint {{amount}}",
+    summary: "Tip {{tip}}",
 };
 
 /** Parse a fixture, push it through the draft, re-parse — both ends are normalized manifests. */
@@ -79,14 +79,14 @@ describe("jsonToArgNode / argNodeToJson", () => {
 });
 
 describe("manifestToDraft / draftToManifest", () => {
-    it("round-trips the mint template through the draft losslessly", () => {
-        const { original, reparsed } = roundTrip(mint);
+    it("round-trips the guestbook template through the draft losslessly", () => {
+        const { original, reparsed } = roundTrip(guestbook);
         expect(reparsed).toEqual(original);
     });
 
     it("round-trips field options, validation, and typed defaults of every type", () => {
         const { original, reparsed } = roundTrip({
-            ...mint,
+            ...guestbook,
             fields: [
                 {
                     name: "amount",
@@ -126,13 +126,13 @@ describe("manifestToDraft / draftToManifest", () => {
 
     it("preserves optional meta (description, icon, summary)", () => {
         const { reparsed } = roundTrip({
-            ...mint,
+            ...guestbook,
             description: "A demo",
             icon: "coin",
         });
         expect(reparsed.description).toBe("A demo");
         expect(reparsed.icon).toBe("coin");
-        expect(reparsed.summary).toBe("Mint {{amount}}");
+        expect(reparsed.summary).toBe("Tip {{tip}}");
     });
 
     it("omits blank optional meta from the serialized manifest", () => {
@@ -189,7 +189,7 @@ describe("normalizeFields (args-first auto-derive)", () => {
     it("picks up placeholders from the summary and composed strings", () => {
         const draft = normalizeFields({
             ...emptyDraft(),
-            summary: "Mint {{amount}}",
+            summary: "Tip {{amount}}",
             args: argsFrom({ msg: '{"to":"{{rcv}}"}' }),
         });
         expect(draft.fields.map((field) => field.name).sort()).toEqual([
