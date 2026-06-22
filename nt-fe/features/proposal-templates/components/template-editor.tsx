@@ -64,10 +64,10 @@ function manifestFromDraft(draft: ManifestDraft): {
         : manifestErrorMessages(parsed.error);
     // Duplicate args keys collapse on serialize (last-write-wins), so parseManifest can't see them;
     // detect them on the draft and block save with a visible error in the Arguments section.
-    const dupeErrors = duplicateArgKeys(draft.args).map(
-        (key) =>
-            `args: duplicate argument key "${key}" — only the last is kept`,
-    );
+    const dupeErrors = duplicateArgKeys(draft.args).map(({ path, key }) => {
+        const where = path ? `args.${path}` : "args";
+        return `${where}: duplicate argument key "${key}" — only the last is kept`;
+    });
     const errors = [...baseErrors, ...dupeErrors];
     if (parsed.success && dupeErrors.length === 0) {
         return { manifest: parsed.data, errors };

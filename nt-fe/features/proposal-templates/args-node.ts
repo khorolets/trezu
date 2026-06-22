@@ -111,34 +111,47 @@ export function resolveDisplayType(
     return explicit === inferred ? explicit : inferred;
 }
 
+/** A duplicated args key with the dotted path (relative to `args`) of its containing object. */
+export interface DuplicateArgKey {
+    /** Path to the object that holds the duplicate; `""` for the top-level args object. */
+    path: string;
+    key: string;
+}
+
 /**
- * Keys that appear more than once within the same object level, anywhere in the args tree. The
+ * Keys that appear more than once within the same object level, anywhere in the args tree, each
+ * tagged with the path to its containing object so the error can point at the offender. The
  * serializer is last-write-wins, so duplicate keys would silently drop on save; the builder surfaces
  * these so the loss is visible. Blank keys (mid-edit) are not counted.
  */
-export function duplicateArgKeys(entries: ArgEntry[]): string[] {
-    const dupes = new Set<string>();
-    walkEntries(entries, dupes);
-    return [...dupes];
+export function duplicateArgKeys(entries: ArgEntry[]): DuplicateArgKey[] {
+    const dupes: DuplicateArgKey[] = [];
+    walkEntries(entries, "", dupes);
+    return dupes;
 }
 
-function walkEntries(entries: ArgEntry[], dupes: Set<string>): void {
+function walkEntries(
+    entries: ArgEntry[],
+    path: string,
+    dupes: DuplicateArgKey[],
+): void {
     const seen = new Set<string>();
     for (const entry of entries) {
         if (entry.key !== "" && seen.has(entry.key)) {
-            dupes.add(entry.key);
+            dupes.push({ path, key: entry.key });
         }
         seen.add(entry.key);
-        walkNode(entry.value, dupes);
+        const childPath = path === "" ? entry.key : `${path}.${entry.key}`;
+        walkNode(entry.value, childPath, dupes);
     }
 }
 
-function walkNode(node: ArgNode, dupes: Set<string>): void {
+function walkNode(node: ArgNode, path: string, dupes: DuplicateArgKey[]): void {
     if (node.kind === "object") {
-        walkEntries(node.entries, dupes);
+        walkEntries(node.entries, path, dupes);
     } else if (node.kind === "array") {
-        for (const item of node.items) {
-            walkNode(item.value, dupes);
-        }
+        node.items.forEach((item, index) => {
+            walkNode(item.value, `${path}.${index}`, dupes);
+        });
     }
 }

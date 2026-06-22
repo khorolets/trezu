@@ -119,13 +119,13 @@ describe("resolveDisplayType", () => {
 });
 
 describe("duplicateArgKeys", () => {
-    it("flags a key repeated at the same object level", () => {
+    it("flags a top-level repeat with an empty path", () => {
         const entries: ArgEntry[] = [
             { id: "1", key: "a", value: { kind: "string", value: "x" } },
             { id: "2", key: "b", value: { kind: "string", value: "y" } },
             { id: "3", key: "a", value: { kind: "string", value: "z" } },
         ];
-        expect(duplicateArgKeys(entries)).toEqual(["a"]);
+        expect(duplicateArgKeys(entries)).toEqual([{ path: "", key: "a" }]);
     });
 
     it("ignores blank keys (mid-edit) and all-unique keys", () => {
@@ -137,7 +137,7 @@ describe("duplicateArgKeys", () => {
         expect(duplicateArgKeys(entries)).toEqual([]);
     });
 
-    it("detects duplicates nested inside an object", () => {
+    it("tags a duplicate nested in an object with its path", () => {
         const entries: ArgEntry[] = [
             {
                 id: "1",
@@ -159,6 +159,43 @@ describe("duplicateArgKeys", () => {
                 },
             },
         ];
-        expect(duplicateArgKeys(entries)).toEqual(["dup"]);
+        expect(duplicateArgKeys(entries)).toEqual([
+            { path: "outer", key: "dup" },
+        ]);
+    });
+
+    it("includes the array index in the path of a duplicate inside an array item", () => {
+        const entries: ArgEntry[] = [
+            {
+                id: "1",
+                key: "list",
+                value: {
+                    kind: "array",
+                    items: [
+                        {
+                            id: "i0",
+                            value: {
+                                kind: "object",
+                                entries: [
+                                    {
+                                        id: "2",
+                                        key: "k",
+                                        value: { kind: "string", value: "1" },
+                                    },
+                                    {
+                                        id: "3",
+                                        key: "k",
+                                        value: { kind: "string", value: "2" },
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                },
+            },
+        ];
+        expect(duplicateArgKeys(entries)).toEqual([
+            { path: "list.0", key: "k" },
+        ]);
     });
 });
