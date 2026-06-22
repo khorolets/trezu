@@ -8,27 +8,33 @@
  * in the draft, so round-tripping never drops it.
  */
 import type { ManifestDraft } from "../draft";
-import { errorFor } from "../error-map";
+import { errorFor, isInlineErrorPath } from "../error-map";
 import { ArgsTreeEditor } from "./args-tree-editor";
-import { FieldError, FieldsBuilder, LabeledInput } from "./fields-builder";
+import { FieldsBuilder, LabeledInput } from "./fields-builder";
 
-/** Errors that belong to the args subtree (not mappable to a single input in the tree). */
+/** Errors in the args subtree — shown at the Arguments section's foot (not mappable per-leaf). */
 function argErrors(errors: string[]): string[] {
     return errors.filter((entry) => entry.split(":")[0].startsWith("args"));
 }
 
-/** Errors not claimed by any section's inputs (a safety net so nothing goes unseen). */
+/** Field errors not tied to one input: the bounds refine, the unique-names rule, a stray `required`. */
+function fieldsSectionErrors(errors: string[]): string[] {
+    return errors.filter((entry) => {
+        const path = entry.split(":")[0];
+        return path.startsWith("fields") && !isInlineErrorPath(path);
+    });
+}
+
+/** Anything no input renders and no section above claims — the final safety net. */
 function otherErrors(errors: string[]): string[] {
-    const claimed = (entry: string) => {
+    return errors.filter((entry) => {
         const path = entry.split(":")[0];
         return (
-            path.startsWith("args") ||
-            path.startsWith("fields") ||
-            path.startsWith("binding") ||
-            ["id", "title", "description", "summary", "icon"].includes(path)
+            !path.startsWith("args") &&
+            !path.startsWith("fields") &&
+            !isInlineErrorPath(path)
         );
-    };
-    return errors.filter((entry) => !claimed(entry));
+    });
 }
 
 function Section({
@@ -163,7 +169,7 @@ export function VisualBuilder({ draft, errors, onChange }: VisualBuilderProps) {
                     errors={errors}
                     onChange={(fields) => update({ fields })}
                 />
-                <FieldError message={errorFor(errors, "fields")} />
+                <ErrorList errors={fieldsSectionErrors(errors)} />
             </Section>
 
             <Section

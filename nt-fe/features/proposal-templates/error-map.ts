@@ -13,6 +13,24 @@ export function errorFor(errors: string[], path: string): string | undefined {
     return cleanMessage(line.slice(path.length + 1).trim());
 }
 
+/**
+ * Whether an error path is rendered inline under a specific input in the visual builder. The
+ * routing uses this so anything NOT shown inline (cross-field refines like `fields.N.validation`
+ * bounds or `fields.N.required`, the unique-names rule, etc.) still reaches a visible catch-all
+ * list — no error can be silently dropped while Save stays disabled.
+ */
+export function isInlineErrorPath(path: string): boolean {
+    if (["id", "title", "description", "summary"].includes(path)) {
+        return true;
+    }
+    if (/^binding\.(receiver_id|method_name|deposit|gas)$/.test(path)) {
+        return true;
+    }
+    return /^fields\.\d+\.(name|label|default|options|validation\.(min|max|pattern))$/.test(
+        path,
+    );
+}
+
 /** Drop a leading field-path token before the verb ("title must …", "binding.x is …"). */
 function cleanMessage(message: string): string {
     const stripped = message.replace(

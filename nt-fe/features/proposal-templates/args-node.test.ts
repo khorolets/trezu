@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { changeType, emptyNodeOf, valueTypeOf } from "./args-node";
+import {
+    changeType,
+    emptyNodeOf,
+    resolveDisplayType,
+    valueTypeOf,
+} from "./args-node";
 
 describe("valueTypeOf", () => {
     it("infers `field` for a lone placeholder, `text` otherwise", () => {
@@ -64,6 +69,49 @@ describe("changeType", () => {
     it("resets to an empty node when changing across kinds", () => {
         expect(changeType({ kind: "number", value: 5 }, "boolean", [])).toEqual(
             { kind: "boolean", value: false },
+        );
+    });
+
+    it("leaves a lone placeholder unchanged on field → text (display override handles it)", () => {
+        const node = { kind: "string", value: "{{amount}}" } as const;
+        expect(changeType(node, "text", [])).toBe(node);
+    });
+
+    it("resets a string to an empty container when switching to object or array", () => {
+        const node = { kind: "string", value: "{{amount}}" } as const;
+        expect(changeType(node, "object", [])).toEqual({
+            kind: "object",
+            entries: [],
+        });
+        expect(changeType(node, "array", [])).toEqual({
+            kind: "array",
+            items: [],
+        });
+    });
+});
+
+describe("resolveDisplayType", () => {
+    it("returns the inferred type when there's no explicit pick", () => {
+        expect(
+            resolveDisplayType({ kind: "string", value: "{{x}}" }, null),
+        ).toBe("field");
+    });
+
+    it("honors an explicit text pick on a lone placeholder (no snap-back)", () => {
+        expect(
+            resolveDisplayType({ kind: "string", value: "{{x}}" }, "text"),
+        ).toBe("text");
+    });
+
+    it("honors an explicit field pick on free text", () => {
+        expect(
+            resolveDisplayType({ kind: "string", value: "hi" }, "field"),
+        ).toBe("field");
+    });
+
+    it("ignores an explicit pick that no longer matches the node's kind", () => {
+        expect(resolveDisplayType({ kind: "number", value: 1 }, "text")).toBe(
+            "number",
         );
     });
 });

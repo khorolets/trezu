@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { errorFor } from "./error-map";
+import { errorFor, isInlineErrorPath } from "./error-map";
 
 const errors = [
     "id: id must be a tag-safe slug",
@@ -27,5 +27,37 @@ describe("errorFor", () => {
 
     it("returns undefined when nothing matches", () => {
         expect(errorFor(errors, "title")).toBeUndefined();
+    });
+});
+
+describe("isInlineErrorPath", () => {
+    it("claims the paths an input actually renders", () => {
+        for (const path of [
+            "id",
+            "title",
+            "binding.receiver_id",
+            "binding.gas",
+            "fields.0.name",
+            "fields.2.label",
+            "fields.0.validation.min",
+            "fields.1.validation.pattern",
+            "fields.0.default",
+            "fields.0.options",
+        ]) {
+            expect(isInlineErrorPath(path)).toBe(true);
+        }
+    });
+
+    it("does NOT claim cross-field refines or the unique-names rule (they need the catch-all)", () => {
+        for (const path of [
+            "fields", // unique field names
+            "fields.0.validation", // min/max cross-bound refine
+            "fields.0.required", // `required` on a bool
+            "fields.0.type",
+            "args",
+            "version",
+        ]) {
+            expect(isInlineErrorPath(path)).toBe(false);
+        }
     });
 });

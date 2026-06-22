@@ -9,6 +9,7 @@
  * `ArgNode` tree the model serializes, so `parseManifest` validates placeholders live.
  */
 import { Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,8 +25,8 @@ import {
     ARG_VALUE_TYPES,
     type ArgValueType,
     changeType,
+    resolveDisplayType,
     SINGLE_FIELD_RE,
-    valueTypeOf,
 } from "../args-node";
 import type { ArgEntry, ArgNode } from "../draft";
 
@@ -74,7 +75,7 @@ function EntriesEditor({
     return (
         <div className={cn("flex flex-col gap-2", indent && "border-l pl-3")}>
             {entries.map((entry, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: controlled rows, no local state
+                // biome-ignore lint/suspicious/noArrayIndexKey: controlled rows; NodeEditor's transient type-override self-corrects on edit
                 <div key={index} className="flex items-start gap-2">
                     <Input
                         className="w-40 shrink-0"
@@ -130,7 +131,7 @@ function ItemsEditor({ items, fieldNames, onChange }: ItemsEditorProps) {
     return (
         <div className="flex flex-col gap-2 border-l pl-3">
             {items.map((item, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: controlled rows, no local state
+                // biome-ignore lint/suspicious/noArrayIndexKey: controlled rows; NodeEditor's transient type-override self-corrects on edit
                 <div key={index} className="flex items-start gap-2">
                     <span className="mt-2 w-6 shrink-0 text-muted-foreground text-xs">
                         {index}
@@ -181,18 +182,21 @@ interface NodeEditorProps {
 }
 
 function NodeEditor({ node, fieldNames, onChange }: NodeEditorProps) {
-    const valueType = valueTypeOf(node);
+    // The user's explicit type pick, held so a "text" choice on a lone `{{placeholder}}` (which
+    // `changeType` leaves unchanged, inferring back to "field") doesn't snap the dropdown back.
+    const [explicitType, setExplicitType] = useState<ArgValueType | null>(null);
+    const valueType = resolveDisplayType(node, explicitType);
 
     return (
         <div className="flex flex-1 flex-col gap-2">
             <div className="flex items-center gap-2">
                 <Select
                     value={valueType}
-                    onValueChange={(value) =>
-                        onChange(
-                            changeType(node, value as ArgValueType, fieldNames),
-                        )
-                    }
+                    onValueChange={(value) => {
+                        const next = value as ArgValueType;
+                        setExplicitType(next);
+                        onChange(changeType(node, next, fieldNames));
+                    }}
                 >
                     <SelectTrigger className="w-28 shrink-0">
                         <SelectValue />

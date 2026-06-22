@@ -87,3 +87,26 @@ export function changeType(
     }
     return emptyNodeOf(type, fieldNames);
 }
+
+/**
+ * The value-type the dropdown should show: the user's explicit pick when it's still compatible with
+ * the node, else the inferred type. A lone-placeholder string infers as "field", so picking "text"
+ * on it would otherwise snap back — both "text" and "field" are valid displays of a string's value,
+ * so an explicit string choice is honored until the type genuinely changes.
+ */
+export function resolveDisplayType(
+    node: ArgNode,
+    explicit: ArgValueType | null,
+): ArgValueType {
+    const inferred = valueTypeOf(node);
+    if (!explicit) {
+        return inferred;
+    }
+    if (
+        node.kind === "string" &&
+        (explicit === "text" || explicit === "field")
+    ) {
+        return explicit;
+    }
+    return explicit === inferred ? explicit : inferred;
+}

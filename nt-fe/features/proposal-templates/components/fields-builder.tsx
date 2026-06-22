@@ -127,10 +127,11 @@ function FieldRow({
     const showRequired = field.type !== "bool";
     const showDefault = field.type !== "bool" && field.type !== "json";
 
-    const boundsError = errorFor(errors, `${path}.validation`);
+    const minError = errorFor(errors, `${path}.validation.min`);
+    const maxError = errorFor(errors, `${path}.validation.max`);
     const patternError = errorFor(errors, `${path}.validation.pattern`);
     const defaultError = errorFor(errors, `${path}.default`);
-    const advancedError = boundsError || patternError || defaultError;
+    const advancedError = minError || maxError || patternError || defaultError;
 
     const [open, setOpen] = useState(() => hasAdvanced(field));
     const showAdvanced = open || Boolean(advancedError);
@@ -175,10 +176,15 @@ function FieldRow({
                         <Select
                             value={field.type}
                             onValueChange={(value) =>
-                                // Clear the default on a type switch so it can't mismatch the new type.
+                                // Clear default on a type switch (can't mismatch the new type), and
+                                // clear `required` when moving to bool — it's not allowed there and
+                                // the bool row has no Required switch to clear it from.
                                 onChange({
                                     type: value as ManifestFieldType,
                                     default: undefined,
+                                    ...(value === "bool"
+                                        ? { required: false }
+                                        : {}),
                                 })
                             }
                         >
@@ -297,7 +303,7 @@ function FieldRow({
                                     setValidation({ min: value })
                                 }
                                 placeholder="0"
-                                error={boundsError}
+                                error={minError}
                             />
                             <LabeledInput
                                 label="Max"
@@ -305,6 +311,7 @@ function FieldRow({
                                 onChange={(value) =>
                                     setValidation({ max: value })
                                 }
+                                error={maxError}
                             />
                         </div>
                     ) : null}
