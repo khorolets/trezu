@@ -1,10 +1,14 @@
 # Custom proposal templates
 
-A **custom proposal template** lets a DAO author a reusable form once; members then
-fill that form to file a generic SputnikDAO **`FunctionCall`** proposal — without
-anyone hand-writing base64 args. The form definition is a JSON **manifest** (the DSL
-described below). The proposal a template produces still passes the DAO's normal
-permissions and approvals, so a manifest never grants authority by itself.
+trezu creates the everyday treasury proposals — payments, transfers, staking — natively,
+but a SputnikDAO can call **any method on any contract**. trezu could already *display*
+those proposals; it just had no way to *create* them. **Custom proposal templates** close
+that gap: a DAO authors a reusable form once, and members fill it to file an arbitrary
+SputnikDAO **`FunctionCall`** proposal — no hand-written base64 args, no developer needed.
+
+The form definition is a JSON **manifest** (the DSL described below). The proposal a
+template produces still passes the DAO's normal permissions and approvals, so a manifest
+never grants authority by itself.
 
 This doc is the canonical reference for the manifest DSL, the architecture, and the
 authoring UI. The in-app `/<dao>/custom-templates/about` page and the
