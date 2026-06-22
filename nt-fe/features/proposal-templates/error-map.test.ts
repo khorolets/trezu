@@ -19,6 +19,22 @@ describe("errorFor", () => {
         expect(errorFor(errors, "fields.0.name")).toBe("Required");
     });
 
+    it("strips only a dotted path or meta key, never an ordinary leading word", () => {
+        expect(
+            errorFor(
+                ["binding.gas: binding.gas must be an integer string"],
+                "binding.gas",
+            ),
+        ).toBe("Must be an integer string");
+        // a descriptive message with no path token is only capitalized, not mis-stripped
+        expect(
+            errorFor(
+                ["args: references a placeholder no field declares"],
+                "args",
+            ),
+        ).toBe("References a placeholder no field declares");
+    });
+
     it("does not match a different path that shares a prefix", () => {
         expect(errorFor(["icon: bad"], "id")).toBeUndefined();
         // "fields" must not swallow "fields.0.name".

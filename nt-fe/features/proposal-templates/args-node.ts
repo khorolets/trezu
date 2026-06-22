@@ -4,7 +4,7 @@
  * where a string is either a single-field reference ("field") or free "text". These pure helpers
  * map between the two and seed new nodes — kept out of the component so they're unit-testable.
  */
-import type { ArgNode } from "./draft";
+import type { ArgEntry, ArgNode } from "./draft";
 
 export type ArgValueType =
     | "text"
@@ -109,4 +109,36 @@ export function resolveDisplayType(
         return explicit;
     }
     return explicit === inferred ? explicit : inferred;
+}
+
+/**
+ * Keys that appear more than once within the same object level, anywhere in the args tree. The
+ * serializer is last-write-wins, so duplicate keys would silently drop on save; the builder surfaces
+ * these so the loss is visible. Blank keys (mid-edit) are not counted.
+ */
+export function duplicateArgKeys(entries: ArgEntry[]): string[] {
+    const dupes = new Set<string>();
+    walkEntries(entries, dupes);
+    return [...dupes];
+}
+
+function walkEntries(entries: ArgEntry[], dupes: Set<string>): void {
+    const seen = new Set<string>();
+    for (const entry of entries) {
+        if (entry.key !== "" && seen.has(entry.key)) {
+            dupes.add(entry.key);
+        }
+        seen.add(entry.key);
+        walkNode(entry.value, dupes);
+    }
+}
+
+function walkNode(node: ArgNode, dupes: Set<string>): void {
+    if (node.kind === "object") {
+        walkEntries(node.entries, dupes);
+    } else if (node.kind === "array") {
+        for (const item of node.items) {
+            walkNode(item.value, dupes);
+        }
+    }
 }

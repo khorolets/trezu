@@ -31,13 +31,16 @@ export function isInlineErrorPath(path: string): boolean {
     );
 }
 
-/** Drop a leading field-path token before the verb ("title must …", "binding.x is …"). */
+// Leading tokens in this schema's messages are always a field path — a dotted token
+// (`binding.receiver_id`, `validation.min`) or a top-level meta key. Strip only those: a
+// deterministic rule that can't mis-strip an ordinary word, unlike a verb-list heuristic.
+const META_KEYS = ["id", "title", "description", "summary", "icon"];
+
+/** Drop a leading field-path token ("title must …", "binding.x is …") and capitalize. */
 function cleanMessage(message: string): string {
-    const stripped = message.replace(
-        /^[`'"\w.[\]]+\s+(?=(?:must|is|are|has|does|may|cannot|should|references)\b)/i,
-        "",
-    );
-    return stripped.length > 0
-        ? stripped[0].toUpperCase() + stripped.slice(1)
-        : message;
+    const [first, ...rest] = message.split(" ");
+    const isFieldToken =
+        rest.length > 0 && (first.includes(".") || META_KEYS.includes(first));
+    const body = isFieldToken ? rest.join(" ") : message;
+    return body.length > 0 ? body[0].toUpperCase() + body.slice(1) : body;
 }

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import {
     changeType,
+    duplicateArgKeys,
     emptyNodeOf,
     resolveDisplayType,
     valueTypeOf,
 } from "./args-node";
+import type { ArgEntry } from "./draft";
 
 describe("valueTypeOf", () => {
     it("infers `field` for a lone placeholder, `text` otherwise", () => {
@@ -113,5 +115,50 @@ describe("resolveDisplayType", () => {
         expect(resolveDisplayType({ kind: "number", value: 1 }, "text")).toBe(
             "number",
         );
+    });
+});
+
+describe("duplicateArgKeys", () => {
+    it("flags a key repeated at the same object level", () => {
+        const entries: ArgEntry[] = [
+            { id: "1", key: "a", value: { kind: "string", value: "x" } },
+            { id: "2", key: "b", value: { kind: "string", value: "y" } },
+            { id: "3", key: "a", value: { kind: "string", value: "z" } },
+        ];
+        expect(duplicateArgKeys(entries)).toEqual(["a"]);
+    });
+
+    it("ignores blank keys (mid-edit) and all-unique keys", () => {
+        const entries: ArgEntry[] = [
+            { id: "1", key: "", value: { kind: "string", value: "" } },
+            { id: "2", key: "", value: { kind: "string", value: "" } },
+            { id: "3", key: "a", value: { kind: "string", value: "z" } },
+        ];
+        expect(duplicateArgKeys(entries)).toEqual([]);
+    });
+
+    it("detects duplicates nested inside an object", () => {
+        const entries: ArgEntry[] = [
+            {
+                id: "1",
+                key: "outer",
+                value: {
+                    kind: "object",
+                    entries: [
+                        {
+                            id: "2",
+                            key: "dup",
+                            value: { kind: "string", value: "1" },
+                        },
+                        {
+                            id: "3",
+                            key: "dup",
+                            value: { kind: "string", value: "2" },
+                        },
+                    ],
+                },
+            },
+        ];
+        expect(duplicateArgKeys(entries)).toEqual(["dup"]);
     });
 });

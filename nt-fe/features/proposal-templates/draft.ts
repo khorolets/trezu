@@ -23,15 +23,37 @@ import {
  */
 export type ArgNode =
     | { kind: "object"; entries: ArgEntry[] }
-    | { kind: "array"; items: ArgNode[] }
+    | { kind: "array"; items: ArgItem[] }
     | { kind: "string"; value: string }
     | { kind: "number"; value: number }
     | { kind: "boolean"; value: boolean }
     | { kind: "null" };
 
+/** A keyed object entry. `id` is a stable client id for React keys; never serialized. */
 export interface ArgEntry {
+    id: string;
     key: string;
     value: ArgNode;
+}
+
+/** A keyed array item. `id` is a stable client id for React keys; never serialized. */
+export interface ArgItem {
+    id: string;
+    value: ArgNode;
+}
+
+/** A fresh args object entry for the builder's "Add key". */
+export function makeArgEntry(): ArgEntry {
+    return {
+        id: crypto.randomUUID(),
+        key: "",
+        value: { kind: "string", value: "" },
+    };
+}
+
+/** A fresh args array item wrapping `value`, for the builder's "Add item". */
+export function makeArgItem(value: ArgNode): ArgItem {
+    return { id: crypto.randomUUID(), value };
 }
 
 /** Build an args node from a parsed JSON value. */
@@ -49,13 +71,23 @@ export function jsonToArgNode(value: unknown): ArgNode {
         return { kind: "boolean", value };
     }
     if (Array.isArray(value)) {
-        return { kind: "array", items: value.map(jsonToArgNode) };
+        return {
+            kind: "array",
+            items: value.map((item) => ({
+                id: crypto.randomUUID(),
+                value: jsonToArgNode(item),
+            })),
+        };
     }
     if (typeof value === "object") {
         return {
             kind: "object",
             entries: Object.entries(value as Record<string, unknown>).map(
-                ([key, child]) => ({ key, value: jsonToArgNode(child) }),
+                ([key, child]) => ({
+                    id: crypto.randomUUID(),
+                    key,
+                    value: jsonToArgNode(child),
+                }),
             ),
         };
     }
@@ -75,7 +107,7 @@ export function argNodeToJson(node: ArgNode): unknown {
         case "boolean":
             return node.value;
         case "array":
-            return node.items.map(argNodeToJson);
+            return node.items.map((item) => argNodeToJson(item.value));
         case "object":
             return argEntriesToJson(node.entries);
     }

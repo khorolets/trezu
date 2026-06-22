@@ -18,6 +18,7 @@ import { InputBlock } from "@/components/input-block";
 import { LargeInput } from "@/components/large-input";
 import { TabGroup } from "@/components/tab-group";
 import { Textarea } from "@/components/textarea";
+import { duplicateArgKeys } from "../args-node";
 import {
     draftToManifest,
     emptyDraft,
@@ -58,10 +59,20 @@ function manifestFromDraft(draft: ManifestDraft): {
     errors: string[];
 } {
     const parsed = parseManifest(draftToManifest(draft));
-    if (!parsed.success) {
-        return { errors: manifestErrorMessages(parsed.error) };
+    const baseErrors = parsed.success
+        ? []
+        : manifestErrorMessages(parsed.error);
+    // Duplicate args keys collapse on serialize (last-write-wins), so parseManifest can't see them;
+    // detect them on the draft and block save with a visible error in the Arguments section.
+    const dupeErrors = duplicateArgKeys(draft.args).map(
+        (key) =>
+            `args: duplicate argument key "${key}" — only the last is kept`,
+    );
+    const errors = [...baseErrors, ...dupeErrors];
+    if (parsed.success && dupeErrors.length === 0) {
+        return { manifest: parsed.data, errors };
     }
-    return { manifest: parsed.data, errors: [] };
+    return { errors };
 }
 
 /** Empty text (a new template) or any syntactically valid JSON may open in Visual mode. */
