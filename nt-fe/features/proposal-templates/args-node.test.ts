@@ -128,6 +128,15 @@ describe("duplicateArgKeys", () => {
         expect(duplicateArgKeys(entries)).toEqual([{ path: "", key: "a" }]);
     });
 
+    it("reports a key repeated 3+ times only once", () => {
+        const entries: ArgEntry[] = [
+            { id: "1", key: "a", value: { kind: "string", value: "1" } },
+            { id: "2", key: "a", value: { kind: "string", value: "2" } },
+            { id: "3", key: "a", value: { kind: "string", value: "3" } },
+        ];
+        expect(duplicateArgKeys(entries)).toEqual([{ path: "", key: "a" }]);
+    });
+
     it("ignores blank keys (mid-edit) and all-unique keys", () => {
         const entries: ArgEntry[] = [
             { id: "1", key: "", value: { kind: "string", value: "" } },

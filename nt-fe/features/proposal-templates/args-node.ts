@@ -136,9 +136,16 @@ function walkEntries(
     dupes: DuplicateArgKey[],
 ): void {
     const seen = new Set<string>();
+    const flagged = new Set<string>();
     for (const entry of entries) {
-        if (entry.key !== "" && seen.has(entry.key)) {
+        if (
+            entry.key !== "" &&
+            seen.has(entry.key) &&
+            !flagged.has(entry.key)
+        ) {
+            // Report a given key once per object level, however many times it repeats.
             dupes.push({ path, key: entry.key });
+            flagged.add(entry.key);
         }
         seen.add(entry.key);
         const childPath = path === "" ? entry.key : `${path}.${entry.key}`;
