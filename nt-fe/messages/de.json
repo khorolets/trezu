@@ -374,6 +374,16 @@
             "method": "Methode",
             "contract": "Vertrag",
             "transaction": "Transaktion"
+        },
+        "refresh": {
+            "ariaLabel": "Vertraulichen Verlauf aktualisieren",
+            "refreshing": "Wird aktualisiert…",
+            "lastUpdated": "Zuletzt aktualisiert {time}",
+            "notUpdated": "Noch nicht aktualisiert",
+            "justNow": "jetzt",
+            "moments": "Momente",
+            "checking": "Aktualisierungsstatus wird geprüft…",
+            "unavailable": "Aktualisierungsstatus nicht verfügbar"
         }
     },
     "apiDocs": {

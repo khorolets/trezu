@@ -374,6 +374,16 @@
             "method": "Méthode",
             "contract": "Contrat",
             "transaction": "Transaction"
+        },
+        "refresh": {
+            "ariaLabel": "Actualiser l'historique confidentiel",
+            "refreshing": "Actualisation…",
+            "lastUpdated": "Dernière mise à jour {time}",
+            "notUpdated": "Pas encore mis à jour",
+            "justNow": "maintenant",
+            "moments": "quelques instants",
+            "checking": "Vérification de l'état d'actualisation…",
+            "unavailable": "État d'actualisation indisponible"
         }
     },
     "apiDocs": {

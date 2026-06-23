@@ -374,6 +374,16 @@
             "method": "Metot",
             "contract": "Sözleşme",
             "transaction": "İşlem"
+        },
+        "refresh": {
+            "ariaLabel": "Gizli geçmişi yenile",
+            "refreshing": "Yenileniyor…",
+            "lastUpdated": "Son güncelleme {time}",
+            "notUpdated": "Henüz güncellenmedi",
+            "justNow": "şimdi",
+            "moments": "az önce",
+            "checking": "Yenileme durumu kontrol ediliyor…",
+            "unavailable": "Yenileme durumu kullanılamıyor"
         }
     },
     "apiDocs": {

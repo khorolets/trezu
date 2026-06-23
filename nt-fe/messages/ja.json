@@ -374,6 +374,16 @@
             "method": "メソッド",
             "contract": "コントラクト",
             "transaction": "トランザクション"
+        },
+        "refresh": {
+            "ariaLabel": "機密履歴を更新",
+            "refreshing": "更新中…",
+            "lastUpdated": "最終更新: {time}",
+            "notUpdated": "まだ更新されていません",
+            "justNow": "今",
+            "moments": "しばらく",
+            "checking": "更新ステータスを確認中…",
+            "unavailable": "更新ステータスを利用できません"
         }
     },
     "apiDocs": {

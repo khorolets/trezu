@@ -374,6 +374,16 @@
             "method": "Metode",
             "contract": "Kontrak",
             "transaction": "Transaksi"
+        },
+        "refresh": {
+            "ariaLabel": "Segarkan riwayat rahasia",
+            "refreshing": "Menyegarkan…",
+            "lastUpdated": "Terakhir diperbarui {time}",
+            "notUpdated": "Belum diperbarui",
+            "justNow": "sekarang",
+            "moments": "beberapa saat",
+            "checking": "Memeriksa status penyegaran…",
+            "unavailable": "Status penyegaran tidak tersedia"
         }
     },
     "apiDocs": {
