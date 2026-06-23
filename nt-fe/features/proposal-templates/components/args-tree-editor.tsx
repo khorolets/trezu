@@ -35,7 +35,8 @@ import {
     makeArgEntry,
     makeArgItem,
 } from "../draft";
-import { FieldConfigFields } from "./fields-builder";
+import { errorFor } from "../error-map";
+import { FieldConfigFields, FieldError } from "./fields-builder";
 
 /** Static value kinds — "field" is excluded (a direct member input is the Dynamic mode instead). */
 const STATIC_TYPES: ArgValueType[] = ARG_VALUE_TYPES.filter(
@@ -113,6 +114,11 @@ function TopEntryRow({
     const dynamic = isDynamicArg(entry);
     const fieldIndex = fields.findIndex((field) => field.name === entry.key);
     const field = fields[fieldIndex];
+    // For a dynamic arg the key *is* the field name, so a `field.name` validation error (e.g. a
+    // space or other non-identifier char) has no input of its own — surface it on the key input.
+    const keyError = dynamic
+        ? errorFor(errors, `fields.${fieldIndex}.name`)
+        : undefined;
 
     const setArgs = (next: ArgEntry[]) => onChange({ args: next, fields });
     const replace = (next: ArgEntry) =>
@@ -171,6 +177,16 @@ function TopEntryRow({
         });
     }
 
+    function removeEntry() {
+        // A dynamic arg owns its field (name == key) — drop both so it can't linger in Other inputs.
+        onChange({
+            args: args.filter((_, i) => i !== index),
+            fields: dynamic
+                ? fields.filter((candidate) => candidate.name !== entry.key)
+                : fields,
+        });
+    }
+
     return (
         <div className="flex flex-col gap-2 rounded-xl bg-muted p-3">
             <div className="flex items-center gap-2">
@@ -179,6 +195,7 @@ function TopEntryRow({
                     value={entry.key}
                     onChange={(event) => setKey(event.target.value)}
                     placeholder="argument"
+                    aria-invalid={keyError ? true : undefined}
                 />
                 <Select
                     value={dynamic ? "dynamic" : "static"}
@@ -210,11 +227,13 @@ function TopEntryRow({
                     variant="ghost"
                     size="icon-sm"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => setArgs(args.filter((_, i) => i !== index))}
+                    onClick={removeEntry}
                 >
                     <Trash2 className="size-4" />
                 </Button>
             </div>
+
+            <FieldError message={keyError} />
 
             {dynamic && field ? (
                 <div className="border-l pl-3">

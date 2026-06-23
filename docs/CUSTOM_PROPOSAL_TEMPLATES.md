@@ -115,6 +115,11 @@ engine substitutes each placeholder with the member's value:
 }
 ```
 
+A value need not be a string. `args` may hold any JSON — numbers, booleans, `null`,
+nested objects, arrays (the visual builder offers these as static value types). Non-string
+values are sent to the contract **verbatim**; `{{placeholders}}` are only ever resolved
+inside string values, so a number/bool/object passes through exactly as written.
+
 Rules:
 - **Every `{{placeholder}}` must reference a declared field.** A dangling reference is
   a validation error (attributed to `args` or `summary`).
