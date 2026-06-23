@@ -7,7 +7,8 @@
  * `args` placeholder issues — show at their section's foot. `icon` isn't surfaced but rides along
  * in the draft, so round-tripping never drops it.
  */
-import type { ManifestDraft } from "../draft";
+import { dynamicArgNames } from "../args-node";
+import { type ManifestDraft, usedFieldNames } from "../draft";
 import { errorFor, isInlineErrorPath } from "../error-map";
 import { ArgsTreeEditor } from "./args-tree-editor";
 import { FieldsBuilder, LabeledInput } from "./fields-builder";
@@ -85,6 +86,8 @@ export function VisualBuilder({ draft, errors, onChange }: VisualBuilderProps) {
         onChange({ ...draft, ...patch });
     const updateBinding = (patch: Partial<ManifestDraft["binding"]>) =>
         onChange({ ...draft, binding: { ...draft.binding, ...patch } });
+    const used = usedFieldNames(draft);
+    const inlineNames = dynamicArgNames(draft.args);
 
     return (
         <div className="flex flex-col gap-4">
@@ -161,29 +164,33 @@ export function VisualBuilder({ draft, errors, onChange }: VisualBuilderProps) {
             </Section>
 
             <Section
-                title="Fields"
-                description="The inputs members fill when filing a proposal."
+                title="Arguments"
+                description="The arguments sent to the contract. Each is Static (a fixed value) or a Member input (dynamic) — for the latter, the input's config appears inline."
+            >
+                <ArgsTreeEditor
+                    args={draft.args}
+                    fields={draft.fields}
+                    fieldNames={draft.fields
+                        .map((field) => field.name)
+                        .filter(Boolean)}
+                    errors={errors}
+                    onChange={({ args, fields }) => update({ args, fields })}
+                />
+                <ErrorList errors={argErrors(errors)} />
+            </Section>
+
+            <Section
+                title="Other inputs"
+                description="Inputs used only inside a composed value (not a direct member-input argument), plus any you add manually. Most templates have none."
             >
                 <FieldsBuilder
                     fields={draft.fields}
                     errors={errors}
+                    usedNames={used}
+                    hideNames={inlineNames}
                     onChange={(fields) => update({ fields })}
                 />
                 <ErrorList errors={fieldsSectionErrors(errors)} />
-            </Section>
-
-            <Section
-                title="Arguments"
-                description="How each field value is wired into the call — pick a field for a direct value, or text with {{field}} placeholders for composed strings."
-            >
-                <ArgsTreeEditor
-                    entries={draft.args}
-                    fieldNames={draft.fields
-                        .map((field) => field.name)
-                        .filter(Boolean)}
-                    onChange={(args) => update({ args })}
-                />
-                <ErrorList errors={argErrors(errors)} />
             </Section>
 
             <ErrorList errors={otherErrors(errors)} />

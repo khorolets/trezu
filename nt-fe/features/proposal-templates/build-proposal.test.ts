@@ -16,38 +16,35 @@ function manifest(raw: unknown): Manifest {
     return result.data;
 }
 
-// The staging NEAR-Intents recovery-mint (one `ft_deposit` call), modelled as a manifest.
-const rawMint = {
+// A guestbook post with a tip — a FunctionCall exercising static, direct, and composed args.
+const rawGuestbook = {
     version: 1,
-    id: "ni-recovery-mint",
-    title: "Recovery Mint",
+    id: "guestbook-tip",
+    title: "Guestbook Tip",
     binding: {
-        receiver_id: "stft.near",
-        method_name: "ft_deposit",
-        deposit: "1250000000000000000000",
-        gas: "150000000000000",
+        receiver_id: "guestbook.near",
+        method_name: "add_message",
+        deposit: "1",
+        gas: "30000000000000",
     },
     fields: [
-        { name: "token", label: "Token", type: "token" },
-        { name: "amount", label: "Amount", type: "uint" },
-        { name: "receiver", label: "Receiver (hex)", type: "text" },
-        { name: "tx_hash", label: "Source tx hash", type: "text" },
+        { name: "message", label: "Message", type: "text" },
+        { name: "author", label: "Author", type: "account" },
+        { name: "tip", label: "Tip (yocto)", type: "uint" },
     ],
     args: {
-        owner_id: "staging-intents.near",
-        token: "{{token}}",
-        amount: "{{amount}}",
-        msg: '{"receiver_id":"{{receiver}}"}',
-        memo: 'BRIDGED_FROM:{"networkType":"eth","chainId":"8453","txHash":"{{tx_hash}}"}',
+        app: "trezu", // static
+        text: "{{message}}", // direct
+        amount: "{{tip}}", // direct, u128
+        meta: '{"by":"{{author}}"}', // composed: a field inside a JSON string
     },
-    summary: "Mint {{amount}} of {{token}} to {{receiver}}",
+    summary: "Tip {{tip}} from {{author}}",
 };
 
-const mintValues = {
-    token: "base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-    amount: "101021",
-    receiver: "a1b2c3deadbeef",
-    tx_hash: "0xabc123",
+const guestbookValues = {
+    message: "gm",
+    author: "alice.near",
+    tip: "5",
 };
 
 describe("interpolateArgs", () => {
@@ -89,31 +86,33 @@ describe("interpolateArgs", () => {
 });
 
 describe("buildTemplateProposal", () => {
-    it("reproduces the recovery-mint ft_deposit call exactly", () => {
-        const { kind } = buildTemplateProposal(manifest(rawMint), mintValues);
+    it("reproduces the add_message call exactly", () => {
+        const { kind } = buildTemplateProposal(
+            manifest(rawGuestbook),
+            guestbookValues,
+        );
         const fc = kind.FunctionCall;
 
-        expect(fc.receiver_id).toBe("stft.near");
+        expect(fc.receiver_id).toBe("guestbook.near");
         expect(fc.actions).toHaveLength(1);
 
         const action = fc.actions[0];
-        expect(action.method_name).toBe("ft_deposit");
-        expect(action.deposit).toBe("1250000000000000000000");
-        expect(action.gas).toBe("150000000000000");
+        expect(action.method_name).toBe("add_message");
+        expect(action.deposit).toBe("1");
+        expect(action.gas).toBe("30000000000000");
         expect(base64ToJson(action.args)).toEqual({
-            owner_id: "staging-intents.near",
-            token: "base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-            amount: "101021",
-            msg: '{"receiver_id":"a1b2c3deadbeef"}',
-            memo: 'BRIDGED_FROM:{"networkType":"eth","chainId":"8453","txHash":"0xabc123"}',
+            app: "trezu",
+            text: "gm",
+            amount: "5",
+            meta: '{"by":"alice.near"}',
         });
     });
 
     it("keeps a u128 amount as a digit string (never a JS number)", () => {
         const big = "340282366920938463463374607431768211455"; // 2^128 - 1
-        const { kind } = buildTemplateProposal(manifest(rawMint), {
-            ...mintValues,
-            amount: big,
+        const { kind } = buildTemplateProposal(manifest(rawGuestbook), {
+            ...guestbookValues,
+            tip: big,
         });
         expect(base64ToJson(kind.FunctionCall.actions[0].args).amount).toBe(
             big,
@@ -122,18 +121,18 @@ describe("buildTemplateProposal", () => {
 
     it("tags the description with [trezu-tmpl:<id>] and interpolates the summary", () => {
         const { description } = buildTemplateProposal(
-            manifest(rawMint),
-            mintValues,
+            manifest(rawGuestbook),
+            guestbookValues,
         );
-        expect(description).toContain("[trezu-tmpl:ni-recovery-mint]");
-        expect(description).toContain("Mint 101021");
+        expect(description).toContain("[trezu-tmpl:guestbook-tip]");
+        expect(description).toContain("Tip 5");
     });
 
     it("falls back to the title when no summary is declared", () => {
         const { description } = buildTemplateProposal(
-            manifest({ ...rawMint, summary: undefined }),
-            mintValues,
+            manifest({ ...rawGuestbook, summary: undefined }),
+            guestbookValues,
         );
-        expect(description).toContain("Recovery Mint");
+        expect(description).toContain("Guestbook Tip");
     });
 });

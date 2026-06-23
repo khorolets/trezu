@@ -1,13 +1,12 @@
 "use client";
 
 /**
- * The Fields section of the visual constructor: an add/remove/reorder list of `FieldDraft` rows.
- * Each row edits one form input — name, label, type, required, and (for `select`) its options,
- * which are always shown since they're mandatory. The optional extras — help, validation, default —
- * sit behind a per-row "Advanced options" disclosure so simple fields stay compact; the disclosure
- * auto-opens when that field has advanced config or a validation error. Errors render under the
- * input they belong to (red field + message). Type-incompatible extras aren't shown; `draftToField`
- * also drops them on serialize, so a type switch can't strand invalid data.
+ * The Inputs section's row editor + the reusable `FieldConfigFields` block (label / type / required /
+ * select options / advanced help+validation+default). `FieldConfigFields` is shared by the standalone
+ * `FieldRow` here and by the args editor's inline "dynamic" config, so a member input is configured
+ * the same way wherever it's edited. The optional extras sit behind a per-row "Advanced options"
+ * disclosure that auto-opens on a validation error. Errors render under the input they belong to;
+ * `draftToField` drops type-incompatible extras on serialize.
  */
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
@@ -44,12 +43,18 @@ function hasAdvanced(field: FieldDraft): boolean {
 interface FieldsBuilderProps {
     fields: FieldDraft[];
     errors: string[];
+    /** Field names referenced by an argument/summary placeholder — the rest are flagged unused. */
+    usedNames: Set<string>;
+    /** Names configured inline on a dynamic argument — hidden here so they aren't double-edited. */
+    hideNames?: Set<string>;
     onChange: (fields: FieldDraft[]) => void;
 }
 
 export function FieldsBuilder({
     fields,
     errors,
+    usedNames,
+    hideNames,
     onChange,
 }: FieldsBuilderProps) {
     function updateField(index: number, patch: Partial<FieldDraft>) {
@@ -72,21 +77,24 @@ export function FieldsBuilder({
 
     return (
         <div className="flex flex-col gap-3">
-            {fields.map((field, index) => (
-                <FieldRow
-                    key={field.key}
-                    field={field}
-                    path={`fields.${index}`}
-                    errors={errors}
-                    canMoveUp={index > 0}
-                    canMoveDown={index < fields.length - 1}
-                    onChange={(patch) => updateField(index, patch)}
-                    onRemove={() =>
-                        onChange(fields.filter((_, i) => i !== index))
-                    }
-                    onMove={(delta) => moveField(index, delta)}
-                />
-            ))}
+            {fields.map((field, index) =>
+                hideNames?.has(field.name) ? null : (
+                    <FieldRow
+                        key={field.key}
+                        field={field}
+                        used={field.name === "" || usedNames.has(field.name)}
+                        path={`fields.${index}`}
+                        errors={errors}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < fields.length - 1}
+                        onChange={(patch) => updateField(index, patch)}
+                        onRemove={() =>
+                            onChange(fields.filter((_, i) => i !== index))
+                        }
+                        onMove={(delta) => moveField(index, delta)}
+                    />
+                ),
+            )}
             <Button
                 type="button"
                 variant="outline"
@@ -102,6 +110,7 @@ export function FieldsBuilder({
 
 interface FieldRowProps {
     field: FieldDraft;
+    used: boolean;
     path: string;
     errors: string[];
     canMoveUp: boolean;
@@ -113,6 +122,7 @@ interface FieldRowProps {
 
 function FieldRow({
     field,
+    used,
     path,
     errors,
     canMoveUp,
@@ -121,6 +131,75 @@ function FieldRow({
     onRemove,
     onMove,
 }: FieldRowProps) {
+    return (
+        <div className="flex flex-col gap-3 rounded-xl bg-muted p-3">
+            <div className="flex items-end gap-2">
+                <div className="flex-1">
+                    <LabeledInput
+                        label="Name"
+                        value={field.name}
+                        onChange={(value) => onChange({ name: value })}
+                        placeholder="greeting"
+                        error={errorFor(errors, `${path}.name`)}
+                    />
+                </div>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={!canMoveUp}
+                    onClick={() => onMove(-1)}
+                >
+                    <ChevronUp className="size-4" />
+                </Button>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={!canMoveDown}
+                    onClick={() => onMove(1)}
+                >
+                    <ChevronDown className="size-4" />
+                </Button>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={onRemove}
+                >
+                    <Trash2 className="size-4" />
+                </Button>
+            </div>
+
+            {used ? null : (
+                <p className="text-amber-600 text-xs dark:text-amber-500">
+                    {`Unused — no argument uses {{${field.name}}}; members fill it but it isn't sent.`}
+                </p>
+            )}
+
+            <FieldConfigFields
+                field={field}
+                path={path}
+                errors={errors}
+                onChange={onChange}
+            />
+        </div>
+    );
+}
+
+/** The config controls for one member input (everything but its name). Shared with the args editor. */
+export function FieldConfigFields({
+    field,
+    path,
+    errors,
+    onChange,
+}: {
+    field: FieldDraft;
+    path: string;
+    errors: string[];
+    onChange: (patch: Partial<FieldDraft>) => void;
+}) {
     const requiredId = useId();
     const isNumeric = NUMERIC_TYPES.includes(field.type);
     const allowsPattern = PATTERN_TYPES.includes(field.type);
@@ -155,81 +234,43 @@ function FieldRow({
     }
 
     return (
-        <div className="flex flex-col gap-3 rounded-xl bg-muted p-3">
-            <div className="flex items-start gap-2">
-                <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3">
-                    <LabeledInput
-                        label="Name"
-                        value={field.name}
-                        onChange={(value) => onChange({ name: value })}
-                        placeholder="greeting"
-                        error={errorFor(errors, `${path}.name`)}
-                    />
-                    <LabeledInput
-                        label="Label"
-                        value={field.label}
-                        onChange={(value) => onChange({ label: value })}
-                        placeholder="Greeting"
-                        error={errorFor(errors, `${path}.label`)}
-                    />
-                    <Labeled label="Type">
-                        <Select
-                            value={field.type}
-                            onValueChange={(value) =>
-                                // Clear default on a type switch (can't mismatch the new type), and
-                                // clear `required` when moving to bool — it's not allowed there and
-                                // the bool row has no Required switch to clear it from.
-                                onChange({
-                                    type: value as ManifestFieldType,
-                                    default: undefined,
-                                    ...(value === "bool"
-                                        ? { required: false }
-                                        : {}),
-                                })
-                            }
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {MANIFEST_FIELD_TYPES.map((type) => (
-                                    <SelectItem key={type} value={type}>
-                                        {type}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </Labeled>
-                </div>
-                <div className="flex gap-1">
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={!canMoveUp}
-                        onClick={() => onMove(-1)}
+        <div className="flex flex-col gap-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+                <LabeledInput
+                    label="Label"
+                    value={field.label}
+                    onChange={(value) => onChange({ label: value })}
+                    placeholder="Greeting"
+                    error={errorFor(errors, `${path}.label`)}
+                />
+                <Labeled label="Type">
+                    <Select
+                        value={field.type}
+                        onValueChange={(value) =>
+                            // Clear default on a type switch (can't mismatch the new type), and clear
+                            // `required` when moving to bool — it's not allowed there and there's no
+                            // Required switch on a bool to clear it from.
+                            onChange({
+                                type: value as ManifestFieldType,
+                                default: undefined,
+                                ...(value === "bool"
+                                    ? { required: false }
+                                    : {}),
+                            })
+                        }
                     >
-                        <ChevronUp className="size-4" />
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={!canMoveDown}
-                        onClick={() => onMove(1)}
-                    >
-                        <ChevronDown className="size-4" />
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={onRemove}
-                    >
-                        <Trash2 className="size-4" />
-                    </Button>
-                </div>
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {MANIFEST_FIELD_TYPES.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                    {type}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </Labeled>
             </div>
 
             {showRequired ? (

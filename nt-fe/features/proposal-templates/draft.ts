@@ -8,12 +8,13 @@
  * with code mode and can never emit a shape the backend would reject.
  *
  * Round-trip is the contract: `draftToManifest(manifestToDraft(m))` re-parses to `m`. The unit tests
- * pin that for the mint template, every field type, validations, and the optional meta fields.
+ * pin that for a representative template, every field type, validations, and optional meta fields.
  */
 import {
     MANIFEST_FIELD_TYPES,
     type Manifest,
     type ManifestFieldType,
+    manifestPlaceholders,
 } from "./manifest";
 
 /**
@@ -323,4 +324,40 @@ export function draftToManifest(draft: ManifestDraft): Record<string, unknown> {
         args: argEntriesToJson(draft.args),
         ...(draft.summary ? { summary: draft.summary } : {}),
     };
+}
+
+/** "first_name" / "tx-hash" → "First Name" / "Tx Hash" — a readable default label. */
+function titleCase(name: string): string {
+    return name
+        .replace(/[_-]+/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+        .trim();
+}
+
+/**
+ * Args-first: the call drives the inputs. Ensure every `{{placeholder}}` referenced in `args` or
+ * `summary` has a field — missing ones are auto-created with a Title-Cased label. Existing fields
+ * (and their config) are left untouched, and unreferenced fields are kept (they may be intentional
+ * or visual-only). Pure; returns the same draft reference when nothing changed. Call on every edit.
+ */
+/** Field names referenced by a `{{placeholder}}` in args or summary — the "used" (wired) inputs. */
+export function usedFieldNames(draft: ManifestDraft): Set<string> {
+    return new Set<string>([
+        ...manifestPlaceholders(argEntriesToJson(draft.args)),
+        ...manifestPlaceholders(draft.summary),
+    ]);
+}
+
+export function normalizeFields(draft: ManifestDraft): ManifestDraft {
+    const used = usedFieldNames(draft);
+    const existing = new Set(draft.fields.map((field) => field.name));
+    const added: FieldDraft[] = [];
+    for (const name of used) {
+        if (name && !existing.has(name)) {
+            added.push({ ...makeFieldDraft(), name, label: titleCase(name) });
+        }
+    }
+    return added.length > 0
+        ? { ...draft, fields: [...draft.fields, ...added] }
+        : draft;
 }

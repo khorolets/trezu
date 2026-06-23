@@ -24,6 +24,7 @@ import {
     emptyDraft,
     jsonToDraft,
     type ManifestDraft,
+    normalizeFields,
 } from "../draft";
 import {
     type Manifest,
@@ -94,7 +95,7 @@ function parseDraft(text: string): ManifestDraft {
         return emptyDraft();
     }
     try {
-        return jsonToDraft(JSON.parse(text));
+        return normalizeFields(jsonToDraft(JSON.parse(text)));
     } catch {
         return emptyDraft();
     }
@@ -159,7 +160,7 @@ export function TemplateEditor({
                 );
                 return;
             }
-            setDraft(jsonToDraft(parsed));
+            setDraft(normalizeFields(jsonToDraft(parsed)));
             setMode("visual");
             return;
         }
@@ -207,7 +208,7 @@ export function TemplateEditor({
                     draft={draft}
                     errors={showErrors ? errors : []}
                     onChange={(next) => {
-                        setDraft(next);
+                        setDraft(normalizeFields(next));
                         setTouched(true);
                     }}
                 />

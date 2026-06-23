@@ -111,6 +111,20 @@ export function resolveDisplayType(
     return explicit === inferred ? explicit : inferred;
 }
 
+/** A top-level argument that's a direct member input: its value is exactly `{{key}}`. */
+export function isDynamicArg(entry: ArgEntry): boolean {
+    return (
+        entry.key !== "" &&
+        entry.value.kind === "string" &&
+        entry.value.value === `{{${entry.key}}}`
+    );
+}
+
+/** Keys of the arguments configured as direct member inputs (their field config is shown inline). */
+export function dynamicArgNames(entries: ArgEntry[]): Set<string> {
+    return new Set(entries.filter(isDynamicArg).map((entry) => entry.key));
+}
+
 /** A duplicated args key with the dotted path (relative to `args`) of its containing object. */
 export interface DuplicateArgKey {
     /** Path to the object that holds the duplicate; `""` for the top-level args object. */
