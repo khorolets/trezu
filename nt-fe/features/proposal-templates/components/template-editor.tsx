@@ -10,14 +10,15 @@
  * the visual draft. Switching Code → Visual parses the textarea into a draft (blocked on invalid
  * JSON); Visual → Code serializes the draft back to text. The active mode is the source of truth.
  */
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/button";
 import { PageCard } from "@/components/card";
 import { InputBlock } from "@/components/input-block";
 import { LargeInput } from "@/components/large-input";
-import { TabGroup } from "@/components/tab-group";
 import { Textarea } from "@/components/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/underline-tabs";
 import { duplicateArgKeys } from "../args-node";
 import {
     draftToManifest,
@@ -102,6 +103,10 @@ function parseDraft(text: string): ManifestDraft {
 }
 
 interface TemplateEditorProps {
+    /** In-card header title with the back arrow, e.g. "New Template" / "Edit Template". */
+    title: string;
+    /** Invoked by the header back arrow (the page owns where "back" goes). */
+    onBack: () => void;
     initialName?: string;
     initialManifestText?: string;
     submitLabel: string;
@@ -118,6 +123,8 @@ interface TemplateEditorProps {
 }
 
 export function TemplateEditor({
+    title,
+    onBack,
     initialName = "",
     initialManifestText = "",
     submitLabel,
@@ -135,14 +142,17 @@ export function TemplateEditor({
     const [draft, setDraft] = useState<ManifestDraft>(() =>
         parseDraft(initialManifestText),
     );
-    // Suppress the error list until the author edits, so a blank new template isn't a wall of red.
-    const [touched, setTouched] = useState(false);
+    // Name owns its touched state, so editing the builder doesn't light up "Name is required".
+    const [nameTouched, setNameTouched] = useState(false);
+    // Code mode is one textarea, so it keeps a single touched gate. The visual builder gates errors
+    // per input (inside each LabeledInput), so an untouched field never shows red.
+    const [codeTouched, setCodeTouched] = useState(false);
 
     const { manifest, errors } =
         mode === "code"
             ? validateManifestText(manifestText)
             : manifestFromDraft(draft);
-    const showErrors = touched && errors.length > 0;
+    const codeShowErrors = codeTouched && errors.length > 0;
     const nameMissing = name.trim().length === 0;
     const canSubmit = !!manifest && !nameMissing && !submitting;
 
@@ -172,32 +182,40 @@ export function TemplateEditor({
 
     return (
         <PageCard className="gap-4">
-            <InputBlock title="Name" invalid={touched && nameMissing}>
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={onBack}
+                    aria-label="Back"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                    <ArrowLeft className="size-5" />
+                </button>
+                <h2 className="font-semibold text-base">{title}</h2>
+            </div>
+
+            <InputBlock title="Name" invalid={nameTouched && nameMissing}>
                 <LargeInput
                     borderless
                     value={name}
-                    onChange={(event) => {
-                        setName(event.target.value);
-                        setTouched(true);
-                    }}
+                    onChange={(event) => setName(event.target.value)}
+                    onBlur={() => setNameTouched(true)}
                     placeholder="Set Greeting"
                 />
-                {touched && nameMissing ? (
+                {nameTouched && nameMissing ? (
                     <p className="text-destructive text-sm">Name is required</p>
                 ) : null}
             </InputBlock>
 
-            <TabGroup
-                tabs={[
-                    { value: "visual", label: "Visual" },
-                    { value: "code", label: "Code" },
-                ]}
-                activeTab={mode}
-                onTabChange={switchMode}
-            />
+            <Tabs value={mode} onValueChange={switchMode}>
+                <TabsList>
+                    <TabsTrigger value="visual">Visual</TabsTrigger>
+                    <TabsTrigger value="code">Code</TabsTrigger>
+                </TabsList>
+            </Tabs>
 
             {mode === "code" ? (
-                <InputBlock title="Manifest (JSON)" invalid={showErrors}>
+                <InputBlock title="Manifest (JSON)" invalid={codeShowErrors}>
                     <Textarea
                         borderless
                         rows={16}
@@ -205,7 +223,7 @@ export function TemplateEditor({
                         value={manifestText}
                         onChange={(event) => {
                             setManifestText(event.target.value);
-                            setTouched(true);
+                            setCodeTouched(true);
                         }}
                         placeholder={EXAMPLE}
                     />
@@ -213,15 +231,12 @@ export function TemplateEditor({
             ) : (
                 <VisualBuilder
                     draft={draft}
-                    errors={showErrors ? errors : []}
-                    onChange={(next) => {
-                        setDraft(normalizeFields(next));
-                        setTouched(true);
-                    }}
+                    errors={errors}
+                    onChange={(next) => setDraft(normalizeFields(next))}
                 />
             )}
 
-            {mode === "code" && showErrors ? (
+            {mode === "code" && codeShowErrors ? (
                 <ul className="list-disc pl-5 text-destructive text-sm">
                     {errors.map((message) => (
                         <li key={message}>{message}</li>
@@ -231,7 +246,6 @@ export function TemplateEditor({
 
             <Button
                 type="button"
-                size="lg"
                 className="w-full"
                 disabled={!canSubmit}
                 onClick={() =>

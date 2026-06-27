@@ -9,6 +9,7 @@
  * inside them is a composed `{{placeholder}}` configured under "Other inputs".
  */
 import { Plus, Trash2 } from "lucide-react";
+import { Fragment } from "react";
 import { Button } from "@/components/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,6 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
     ARG_VALUE_TYPES,
@@ -36,7 +38,7 @@ import {
     makeArgItem,
 } from "../draft";
 import { errorFor } from "../error-map";
-import { FieldConfigFields, FieldError } from "./fields-builder";
+import { FieldConfigFields, Labeled, LabeledInput } from "./fields-builder";
 
 /** Static value kinds — "field" is excluded (a direct member input is the Dynamic mode instead). */
 const STATIC_TYPES: ArgValueType[] = ARG_VALUE_TYPES.filter(
@@ -66,28 +68,30 @@ export function ArgsTreeEditor({
     onChange,
 }: ArgsTreeEditorProps) {
     return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-4">
             {args.map((entry, index) => (
-                <TopEntryRow
-                    key={entry.id}
-                    args={args}
-                    index={index}
-                    fields={fields}
-                    fieldNames={fieldNames}
-                    errors={errors}
-                    onChange={onChange}
-                />
+                <Fragment key={entry.id}>
+                    {index > 0 ? <Separator /> : null}
+                    <TopEntryRow
+                        args={args}
+                        index={index}
+                        fields={fields}
+                        fieldNames={fieldNames}
+                        errors={errors}
+                        onChange={onChange}
+                    />
+                </Fragment>
             ))}
             <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="self-start"
+                className="self-start px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
                 onClick={() =>
                     onChange({ args: [...args, makeArgEntry()], fields })
                 }
             >
-                <Plus className="size-4" /> Add argument
+                <Plus className="size-4" /> Add Argument
             </Button>
         </div>
     );
@@ -119,6 +123,9 @@ function TopEntryRow({
     const keyError = dynamic
         ? errorFor(errors, `fields.${fieldIndex}.name`)
         : undefined;
+    // A lone static string value can have a `{{field}}` placeholder appended via the inline inserter.
+    const staticStringValue =
+        entry.value.kind === "string" ? entry.value.value : null;
 
     const setArgs = (next: ArgEntry[]) => onChange({ args: next, fields });
     const replace = (next: ArgEntry) =>
@@ -188,61 +195,107 @@ function TopEntryRow({
     }
 
     return (
-        <div className="flex flex-col gap-2 rounded-xl bg-muted p-3">
-            <div className="flex items-center gap-2">
-                <Input
-                    className="w-40 shrink-0"
-                    value={entry.key}
-                    onChange={(event) => setKey(event.target.value)}
-                    placeholder="argument"
-                    aria-invalid={keyError ? true : undefined}
-                />
-                <Select
-                    value={dynamic ? "dynamic" : "static"}
-                    onValueChange={(value) => setDynamic(value === "dynamic")}
-                >
-                    <SelectTrigger className="w-32 shrink-0">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="static">Static</SelectItem>
-                        <SelectItem value="dynamic" disabled={entry.key === ""}>
-                            Member input
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-                {dynamic ? (
-                    <span className="flex-1 font-mono text-muted-foreground text-xs">{`{{${entry.key}}}`}</span>
-                ) : (
-                    <StaticValue
-                        type={staticTypeOf(entry.value)}
-                        node={entry.value}
-                        fieldNames={fieldNames}
-                        onTypeChange={setStaticType}
-                        onChange={setValue}
-                    />
-                )}
+        <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-sm">Argument {index + 1}</h4>
                 <Button
                     type="button"
                     variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive hover:text-destructive"
+                    size="sm"
+                    className="text-muted-foreground hover:text-foreground"
                     onClick={removeEntry}
                 >
-                    <Trash2 className="size-4" />
+                    <Trash2 className="size-4" /> Remove
                 </Button>
             </div>
 
-            <FieldError message={keyError} />
+            <div className="grid gap-3 sm:grid-cols-2">
+                <LabeledInput
+                    label="Argument name"
+                    value={entry.key}
+                    onChange={setKey}
+                    placeholder="argument"
+                    error={keyError}
+                />
+                <Labeled label="Type">
+                    <Select
+                        value={dynamic ? "dynamic" : "static"}
+                        onValueChange={(value) =>
+                            setDynamic(value === "dynamic")
+                        }
+                    >
+                        <SelectTrigger className="w-full">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="static">Static</SelectItem>
+                            <SelectItem
+                                value="dynamic"
+                                disabled={entry.key === ""}
+                            >
+                                Member input
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </Labeled>
+            </div>
 
             {dynamic && field ? (
-                <div className="border-l pl-3">
-                    <FieldConfigFields
-                        field={field}
-                        path={`fields.${fieldIndex}`}
-                        errors={errors}
-                        onChange={setFieldConfig}
-                    />
+                <FieldConfigFields
+                    field={field}
+                    path={`fields.${fieldIndex}`}
+                    errors={errors}
+                    onChange={setFieldConfig}
+                />
+            ) : null}
+
+            {!dynamic ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                    <Labeled label="Value type">
+                        <Select
+                            value={staticTypeOf(entry.value)}
+                            onValueChange={(value) =>
+                                setStaticType(value as ArgValueType)
+                            }
+                        >
+                            <SelectTrigger className="w-full">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {STATIC_TYPES.map((staticType) => (
+                                    <SelectItem
+                                        key={staticType}
+                                        value={staticType}
+                                    >
+                                        {staticType}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </Labeled>
+                    <Labeled
+                        label="Value"
+                        action={
+                            staticStringValue !== null &&
+                            fieldNames.length > 0 ? (
+                                <FieldInserter
+                                    fieldNames={fieldNames}
+                                    onInsert={(name) =>
+                                        setValue({
+                                            kind: "string",
+                                            value: `${staticStringValue}{{${name}}}`,
+                                        })
+                                    }
+                                />
+                            ) : undefined
+                        }
+                    >
+                        <StaticLeaf
+                            node={entry.value}
+                            fieldNames={[]}
+                            onChange={setValue}
+                        />
+                    </Labeled>
                 </div>
             ) : null}
 
@@ -379,6 +432,30 @@ function StaticLeaf({
     }
     // null / object / array carry no inline editor.
     return <div className="flex-1" />;
+}
+
+/** Inline link-style dropdown (top-right of the Value label) that appends a `{{field}}` placeholder. */
+function FieldInserter({
+    fieldNames,
+    onInsert,
+}: {
+    fieldNames: string[];
+    onInsert: (name: string) => void;
+}) {
+    return (
+        <Select value="" onValueChange={onInsert}>
+            <SelectTrigger className="h-auto w-auto gap-1 border-0 bg-transparent p-0 text-muted-foreground text-xs shadow-none hover:text-foreground focus:ring-0 focus-visible:ring-0">
+                + field
+            </SelectTrigger>
+            <SelectContent>
+                {fieldNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                        {name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    );
 }
 
 /** Static key→value entries inside a nested object (no Dynamic here — use a composed placeholder). */

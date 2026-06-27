@@ -45,12 +45,15 @@ export default function CreateTemplatePage() {
 
     return (
         <PageComponentLayout
-            title="New template"
-            description="Author a proposal template from its manifest JSON."
-            backButton
+            title="Request Templates"
+            description="Build reusable templates for custom request types."
         >
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
                 <TemplateEditor
+                    title="New Template"
+                    onBack={() =>
+                        router.push(`/${treasuryId}/custom-templates`)
+                    }
                     submitLabel="Create template"
                     submittingLabel="Creating…"
                     submitting={createTemplate.isPending}

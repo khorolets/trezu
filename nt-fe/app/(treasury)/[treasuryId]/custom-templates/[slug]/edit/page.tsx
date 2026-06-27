@@ -84,9 +84,8 @@ export default function EditTemplatePage() {
 
     return (
         <PageComponentLayout
-            title="Edit template"
-            description="Update the manifest, or delete the template."
-            backButton
+            title="Request Templates"
+            description="Build reusable templates for custom request types."
         >
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
                 {isLoading ? (
@@ -98,6 +97,10 @@ export default function EditTemplatePage() {
                 ) : template ? (
                     <TemplateEditor
                         key={template.id}
+                        title="Edit Template"
+                        onBack={() =>
+                            router.push(`/${treasuryId}/custom-templates`)
+                        }
                         initialName={template.name}
                         initialManifestText={JSON.stringify(
                             template.manifest,
