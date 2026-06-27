@@ -78,10 +78,21 @@ function ErrorList({ errors }: { errors: string[] }) {
 interface VisualBuilderProps {
     draft: ManifestDraft;
     errors: string[];
+    /**
+     * Whether to show the cross-input section-foot errors (duplicate keys, unique-names, unknown
+     * placeholders). Per-input errors self-gate on their own touch inside each input; these don't
+     * belong to a single input, so the parent gates them on the builder having been touched at all.
+     */
+    showSectionErrors: boolean;
     onChange: (draft: ManifestDraft) => void;
 }
 
-export function VisualBuilder({ draft, errors, onChange }: VisualBuilderProps) {
+export function VisualBuilder({
+    draft,
+    errors,
+    showSectionErrors,
+    onChange,
+}: VisualBuilderProps) {
     const update = (patch: Partial<ManifestDraft>) =>
         onChange({ ...draft, ...patch });
     const updateBinding = (patch: Partial<ManifestDraft["binding"]>) =>
@@ -176,7 +187,9 @@ export function VisualBuilder({ draft, errors, onChange }: VisualBuilderProps) {
                     errors={errors}
                     onChange={({ args, fields }) => update({ args, fields })}
                 />
-                <ErrorList errors={argErrors(errors)} />
+                <ErrorList
+                    errors={showSectionErrors ? argErrors(errors) : []}
+                />
             </Section>
 
             <Section
@@ -190,10 +203,14 @@ export function VisualBuilder({ draft, errors, onChange }: VisualBuilderProps) {
                     hideNames={inlineNames}
                     onChange={(fields) => update({ fields })}
                 />
-                <ErrorList errors={fieldsSectionErrors(errors)} />
+                <ErrorList
+                    errors={
+                        showSectionErrors ? fieldsSectionErrors(errors) : []
+                    }
+                />
             </Section>
 
-            <ErrorList errors={otherErrors(errors)} />
+            <ErrorList errors={showSectionErrors ? otherErrors(errors) : []} />
         </div>
     );
 }

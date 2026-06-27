@@ -381,26 +381,15 @@ function StaticLeaf({
                     placeholder="text or {{field}}"
                 />
                 {fieldNames.length > 0 ? (
-                    <Select
-                        value=""
-                        onValueChange={(name) =>
+                    <FieldInserter
+                        fieldNames={fieldNames}
+                        onInsert={(name) =>
                             onChange({
                                 kind: "string",
                                 value: `${node.value}{{${name}}}`,
                             })
                         }
-                    >
-                        <SelectTrigger className="w-auto shrink-0 gap-1 text-xs">
-                            + field
-                        </SelectTrigger>
-                        <SelectContent>
-                            {fieldNames.map((name) => (
-                                <SelectItem key={name} value={name}>
-                                    {name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    />
                 ) : null}
             </div>
         );

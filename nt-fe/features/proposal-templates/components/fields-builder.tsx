@@ -68,13 +68,9 @@ export function FieldsBuilder({
         );
     }
 
-    function moveField(index: number, delta: number) {
-        const target = index + delta;
-        if (target < 0 || target >= fields.length) {
-            return;
-        }
+    function swapFields(a: number, b: number) {
         const next = [...fields];
-        [next[index], next[target]] = [next[target], next[index]];
+        [next[a], next[b]] = [next[b], next[a]];
         onChange(next);
     }
 
@@ -94,13 +90,21 @@ export function FieldsBuilder({
                         used={field.name === "" || usedNames.has(field.name)}
                         path={`fields.${index}`}
                         errors={errors}
-                        canMoveUp={index > 0}
-                        canMoveDown={index < fields.length - 1}
+                        canMoveUp={displayIndex > 0}
+                        canMoveDown={displayIndex < visible.length - 1}
                         onChange={(patch) => updateField(index, patch)}
                         onRemove={() =>
                             onChange(fields.filter((_, i) => i !== index))
                         }
-                        onMove={(delta) => moveField(index, delta)}
+                        onMove={(delta) => {
+                            // Move relative to the visible neighbor, not the raw array slot, so a
+                            // swap never lands on a hidden inline-dynamic field.
+                            const target = displayIndex + delta;
+                            if (target < 0 || target >= visible.length) {
+                                return;
+                            }
+                            swapFields(index, visible[target].index);
+                        }}
                     />
                 </Fragment>
             ))}

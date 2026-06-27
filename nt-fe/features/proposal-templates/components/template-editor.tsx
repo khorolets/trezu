@@ -147,6 +147,9 @@ export function TemplateEditor({
     // Code mode is one textarea, so it keeps a single touched gate. The visual builder gates errors
     // per input (inside each LabeledInput), so an untouched field never shows red.
     const [codeTouched, setCodeTouched] = useState(false);
+    // Cross-input section errors (duplicate keys, unique names, unknown placeholders) aren't tied to
+    // one input, so they show once the builder has been touched at all — consistent with per-input.
+    const [builderTouched, setBuilderTouched] = useState(false);
 
     const { manifest, errors } =
         mode === "code"
@@ -232,7 +235,11 @@ export function TemplateEditor({
                 <VisualBuilder
                     draft={draft}
                     errors={errors}
-                    onChange={(next) => setDraft(normalizeFields(next))}
+                    showSectionErrors={builderTouched}
+                    onChange={(next) => {
+                        setDraft(normalizeFields(next));
+                        setBuilderTouched(true);
+                    }}
                 />
             )}
 
