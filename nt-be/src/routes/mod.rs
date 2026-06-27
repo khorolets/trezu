@@ -348,6 +348,12 @@ pub fn create_routes(state: Arc<AppState>) -> Router {
             put(handlers::proposal_templates::update_proposal_template)
                 .delete(handlers::proposal_templates::delete_proposal_template),
         )
+        // Custom Requests feature flag (opt-in, gated on ChangePolicy)
+        .route(
+            "/api/treasury/{dao_id}/custom-requests",
+            get(handlers::treasury::custom_requests::get_custom_requests_setting)
+                .put(handlers::treasury::custom_requests::set_custom_requests_setting),
+        )
         // DAO endpoints
         .route(
             "/api/dao/mark-dirty",

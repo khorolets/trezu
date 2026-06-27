@@ -1,11 +1,12 @@
 "use client";
 
-import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Suspense, useEffect, useState } from "react";
 import { PageComponentLayout } from "@/components/page-component-layout";
 import { TabGroup } from "@/components/tab-group";
 import { features } from "@/constants/features";
+import { DeveloperTab } from "./components/developer-tab";
 import { GeneralTab } from "./components/general-tab";
 import { IntegrationsTab } from "./components/integrations-tab";
 import { PreferencesTab } from "./components/preferences-tab";
@@ -16,16 +17,22 @@ function SettingsPageContent() {
     const tTabs = useTranslations("settings.tabs");
     const searchParams = useSearchParams();
     const tabFromUrl = searchParams.get("tab");
-    const [activeTab, setActiveTab] = useState(() =>
-        tabFromUrl === "integrations" && features.integrations
-            ? "integrations"
-            : "general",
-    );
+    const [activeTab, setActiveTab] = useState(() => {
+        if (tabFromUrl === "integrations" && features.integrations) {
+            return "integrations";
+        }
+        if (tabFromUrl === "developer") {
+            return "developer";
+        }
+        return "general";
+    });
 
     useEffect(() => {
         const tab = searchParams.get("tab");
         if (tab === "integrations" && features.integrations) {
             setActiveTab("integrations");
+        } else if (tab === "developer") {
+            setActiveTab("developer");
         }
     }, [searchParams]);
 
@@ -42,6 +49,7 @@ function SettingsPageContent() {
                   },
               ]
             : []),
+        { value: "developer", label: "Developer" },
     ];
 
     return (
@@ -61,6 +69,7 @@ function SettingsPageContent() {
                 {activeTab === "integrations" && features.integrations && (
                     <IntegrationsTab />
                 )}
+                {activeTab === "developer" && <DeveloperTab />}
             </div>
         </PageComponentLayout>
     );

@@ -143,7 +143,8 @@ export function TemplateEditor({
             ? validateManifestText(manifestText)
             : manifestFromDraft(draft);
     const showErrors = touched && errors.length > 0;
-    const canSubmit = !!manifest && name.trim().length > 0 && !submitting;
+    const nameMissing = name.trim().length === 0;
+    const canSubmit = !!manifest && !nameMissing && !submitting;
 
     function switchMode(next: string) {
         const target = next as Mode;
@@ -171,13 +172,19 @@ export function TemplateEditor({
 
     return (
         <PageCard className="gap-4">
-            <InputBlock title="Name" invalid={false}>
+            <InputBlock title="Name" invalid={touched && nameMissing}>
                 <LargeInput
                     borderless
                     value={name}
-                    onChange={(event) => setName(event.target.value)}
+                    onChange={(event) => {
+                        setName(event.target.value);
+                        setTouched(true);
+                    }}
                     placeholder="Set Greeting"
                 />
+                {touched && nameMissing ? (
+                    <p className="text-destructive text-sm">Name is required</p>
+                ) : null}
             </InputBlock>
 
             <TabGroup

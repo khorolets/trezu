@@ -580,7 +580,9 @@ mod tests {
 
         let entries: serde_json::Value =
             serde_json::from_str(&body).expect("List response should be valid JSON");
-        let entries = entries.as_array().expect("List response should be an array");
+        let entries = entries
+            .as_array()
+            .expect("List response should be an array");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0]["name"], "Orphan");
         assert_eq!(entries[0]["createdBy"], serde_json::Value::Null);
