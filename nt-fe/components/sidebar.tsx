@@ -377,9 +377,17 @@ export function Sidebar({ onClose }: SidebarProps) {
                                         : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                                 )}
                             >
-                                <button
+                                <Button
                                     id="request-templates-nav"
-                                    type="button"
+                                    variant="link"
+                                    // Collapsed sidebar is icon-only, so restore the hover label
+                                    // there (and keep the tour selector id on this element).
+                                    tooltipContent={
+                                        showLabels
+                                            ? undefined
+                                            : "Request Templates"
+                                    }
+                                    side="right"
                                     onClick={() => {
                                         router.push(
                                             `/${treasuryId}/custom-templates`,
@@ -387,8 +395,10 @@ export function Sidebar({ onClose }: SidebarProps) {
                                         if (isMobile) onClose();
                                     }}
                                     className={cn(
-                                        "flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-[5.5px] font-medium text-sm",
-                                        showLabels ? "px-3" : "justify-center",
+                                        "flex min-w-0 flex-1 items-center gap-3 py-[5.5px] font-medium text-inherit text-sm hover:text-inherit",
+                                        showLabels
+                                            ? "px-3"
+                                            : "justify-center px-3",
                                     )}
                                 >
                                     <CodeXml className="size-5 shrink-0" />
@@ -397,7 +407,7 @@ export function Sidebar({ onClose }: SidebarProps) {
                                             Request Templates
                                         </span>
                                     )}
-                                </button>
+                                </Button>
                                 {showLabels && pinnedTemplates.length > 0 && (
                                     <button
                                         type="button"

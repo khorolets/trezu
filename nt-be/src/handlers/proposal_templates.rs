@@ -665,6 +665,11 @@ mod tests {
         assert_eq!(created["createdBy"].as_str(), Some(USER_ACCOUNT_ID));
         assert_eq!(created["enabled"].as_bool(), Some(true));
         assert_eq!(
+            created["pinned"].as_bool(),
+            Some(false),
+            "pinned defaults to false on create"
+        );
+        assert_eq!(
             created["manifest"],
             valid_manifest(),
             "manifest should round-trip through JSONB unchanged"
@@ -812,6 +817,55 @@ mod tests {
             updated["name"].as_str(),
             Some("Guestbook Tip v2"),
             "name must be preserved when only description is updated"
+        );
+
+        // PIN: set it to true.
+        let (status, body) = send(
+            app.clone(),
+            "PUT",
+            item.clone(),
+            &cookie,
+            Some(json!({ "pinned": true })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            serde_json::from_str::<Value>(&body).unwrap()["pinned"].as_bool(),
+            Some(true),
+            "pinned should be set to true"
+        );
+
+        // A name-only update must NOT clear pinned — COALESCE($7, pinned) is load-bearing; without
+        // it, pin state would silently reset on every other field's update.
+        let (status, body) = send(
+            app.clone(),
+            "PUT",
+            item.clone(),
+            &cookie,
+            Some(json!({ "name": "renamed" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            serde_json::from_str::<Value>(&body).unwrap()["pinned"].as_bool(),
+            Some(true),
+            "pinned must survive a name-only update, not silently clear"
+        );
+
+        // UNPIN: toggle true -> false and read it back.
+        let (status, body) = send(
+            app.clone(),
+            "PUT",
+            item.clone(),
+            &cookie,
+            Some(json!({ "pinned": false })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            serde_json::from_str::<Value>(&body).unwrap()["pinned"].as_bool(),
+            Some(false),
+            "pinned should toggle back to false"
         );
 
         // UPDATE with a whitespace-only description -> 400
