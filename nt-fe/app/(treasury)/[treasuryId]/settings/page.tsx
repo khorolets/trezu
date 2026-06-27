@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { PageComponentLayout } from "@/components/page-component-layout";
 import { TabGroup } from "@/components/tab-group";
 import { features } from "@/constants/features";
+import { useTreasury } from "@/hooks/use-treasury";
 import { DeveloperTab } from "./components/developer-tab";
 import { GeneralTab } from "./components/general-tab";
 import { IntegrationsTab } from "./components/integrations-tab";
@@ -17,6 +18,11 @@ function SettingsPageContent() {
     const tTabs = useTranslations("settings.tabs");
     const searchParams = useSearchParams();
     const tabFromUrl = searchParams.get("tab");
+    // The Developer tab only does anything for a signed-in member (its Enable action is
+    // ChangePolicy-gated), so hide it from guests and signed-out viewers — same idea as the
+    // feature-flag-gated Integrations tab.
+    const { isGuestTreasury } = useTreasury();
+    const showDeveloper = !isGuestTreasury;
     const [activeTab, setActiveTab] = useState(() => {
         if (tabFromUrl === "integrations" && features.integrations) {
             return "integrations";
@@ -31,10 +37,10 @@ function SettingsPageContent() {
         const tab = searchParams.get("tab");
         if (tab === "integrations" && features.integrations) {
             setActiveTab("integrations");
-        } else if (tab === "developer") {
+        } else if (tab === "developer" && showDeveloper) {
             setActiveTab("developer");
         }
-    }, [searchParams]);
+    }, [searchParams, showDeveloper]);
 
     const tabs = [
         { value: "general", label: tTabs("general") },
@@ -49,7 +55,7 @@ function SettingsPageContent() {
                   },
               ]
             : []),
-        { value: "developer", label: "Developer" },
+        ...(showDeveloper ? [{ value: "developer", label: "Developer" }] : []),
     ];
 
     return (
@@ -69,7 +75,7 @@ function SettingsPageContent() {
                 {activeTab === "integrations" && features.integrations && (
                     <IntegrationsTab />
                 )}
-                {activeTab === "developer" && <DeveloperTab />}
+                {activeTab === "developer" && showDeveloper && <DeveloperTab />}
             </div>
         </PageComponentLayout>
     );

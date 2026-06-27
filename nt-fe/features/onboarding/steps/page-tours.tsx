@@ -54,6 +54,7 @@ export const PAGE_TOUR_STORAGE_KEYS = {
     EXCHANGE_SETTINGS_SHOWN: "exchange-settings-tour-shown",
     MEMBERS_PENDING_SHOWN: "members-pending-tour-shown",
     GUEST_SAVE_SHOWN: "guest-save-tour-shown",
+    REQUEST_TEMPLATES_SHOWN: "request-templates-tour-shown",
 } as const;
 
 // Selector IDs
