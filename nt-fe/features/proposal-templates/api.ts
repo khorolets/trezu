@@ -44,6 +44,7 @@ export interface UpdateProposalTemplateInput {
     description?: string | null;
     manifest?: unknown;
     enabled?: boolean;
+    pinned?: boolean;
 }
 
 /**
