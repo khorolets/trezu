@@ -27,7 +27,7 @@ function SettingsPageContent() {
         if (tabFromUrl === "integrations" && features.integrations) {
             return "integrations";
         }
-        if (tabFromUrl === "developer") {
+        if (tabFromUrl === "developer" && showDeveloper) {
             return "developer";
         }
         return "general";
@@ -41,6 +41,16 @@ function SettingsPageContent() {
             setActiveTab("developer");
         }
     }, [searchParams, showDeveloper]);
+
+    // `isGuestTreasury` resolves async, so a guest can land on `?tab=developer` before it's known;
+    // once Developer is hidden, never strand on it (no matching tab or body).
+    useEffect(() => {
+        if (!showDeveloper) {
+            setActiveTab((current) =>
+                current === "developer" ? "general" : current,
+            );
+        }
+    }, [showDeveloper]);
 
     const tabs = [
         { value: "general", label: tTabs("general") },
