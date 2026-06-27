@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * Edit or delete an existing template (code mode). Reuses TemplateEditor pre-filled with the
- * template's current name + manifest, saving via the `ChangePolicy`-gated update endpoint. Delete
- * is confirmed in a dialog and returns to the index. A non-author hitting save/delete gets the
- * backend's 403 as a toast.
+ * Edit or delete an existing template. Reuses TemplateEditor (Visual constructor by default, Code
+ * tab for raw JSON) pre-filled with the template's current name + manifest, saving via the
+ * `ChangePolicy`-gated update endpoint. Delete is confirmed in a dialog and returns to the index. A
+ * non-author hitting save/delete gets the backend's 403 as a toast.
  */
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -84,9 +84,8 @@ export default function EditTemplatePage() {
 
     return (
         <PageComponentLayout
-            title="Edit template"
-            description="Update the manifest, or delete the template."
-            backButton
+            title="Request Templates"
+            description="Build reusable templates for custom request types."
         >
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
                 {isLoading ? (
@@ -98,6 +97,10 @@ export default function EditTemplatePage() {
                 ) : template ? (
                     <TemplateEditor
                         key={template.id}
+                        title="Edit Template"
+                        onBack={() =>
+                            router.push(`/${treasuryId}/custom-templates`)
+                        }
                         initialName={template.name}
                         initialManifestText={JSON.stringify(
                             template.manifest,

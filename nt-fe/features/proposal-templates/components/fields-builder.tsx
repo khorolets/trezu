@@ -4,12 +4,13 @@
  * The Inputs section's row editor + the reusable `FieldConfigFields` block (label / type / required /
  * select options / advanced help+validation+default). `FieldConfigFields` is shared by the standalone
  * `FieldRow` here and by the args editor's inline "dynamic" config, so a member input is configured
- * the same way wherever it's edited. The optional extras sit behind a per-row "Advanced options"
- * disclosure that auto-opens on a validation error. Errors render under the input they belong to;
- * `draftToField` drops type-incompatible extras on serialize.
+ * the same way wherever it's edited. The optional extras (help / validation / default) sit behind a
+ * per-row "Advanced options" disclosure that auto-opens when pre-filled or on a validation error,
+ * and only the ones a field type allows are shown. Errors render under the input they belong to
+ * (after it's touched); `draftToField` drops type-incompatible extras on serialize.
  */
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
-import { useId, useState } from "react";
+import { Fragment, useId, useState } from "react";
 import { Button } from "@/components/button";
 import { Textarea } from "@/components/textarea";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { type FieldDraft, makeFieldDraft } from "../draft";
@@ -30,6 +32,7 @@ import { MANIFEST_FIELD_TYPES, type ManifestFieldType } from "../manifest";
 const NUMERIC_TYPES: ManifestFieldType[] = ["uint", "amount", "number"];
 const PATTERN_TYPES: ManifestFieldType[] = ["text", "number"];
 
+/** Whether a field already carries any advanced config — used to open the disclosure pre-filled. */
 function hasAdvanced(field: FieldDraft): boolean {
     return Boolean(
         field.help ||
@@ -65,41 +68,51 @@ export function FieldsBuilder({
         );
     }
 
-    function moveField(index: number, delta: number) {
-        const target = index + delta;
-        if (target < 0 || target >= fields.length) {
-            return;
-        }
+    function swapFields(a: number, b: number) {
         const next = [...fields];
-        [next[index], next[target]] = [next[target], next[index]];
+        [next[a], next[b]] = [next[b], next[a]];
         onChange(next);
     }
 
+    // Fields configured inline on a dynamic argument are hidden here; number the rest sequentially.
+    const visible = fields
+        .map((field, index) => ({ field, index }))
+        .filter(({ field }) => !hideNames?.has(field.name));
+
     return (
-        <div className="flex flex-col gap-3">
-            {fields.map((field, index) =>
-                hideNames?.has(field.name) ? null : (
+        <div className="flex flex-col gap-4">
+            {visible.map(({ field, index }, displayIndex) => (
+                <Fragment key={field.key}>
+                    {displayIndex > 0 ? <Separator /> : null}
                     <FieldRow
-                        key={field.key}
                         field={field}
+                        index={displayIndex}
                         used={field.name === "" || usedNames.has(field.name)}
                         path={`fields.${index}`}
                         errors={errors}
-                        canMoveUp={index > 0}
-                        canMoveDown={index < fields.length - 1}
+                        canMoveUp={displayIndex > 0}
+                        canMoveDown={displayIndex < visible.length - 1}
                         onChange={(patch) => updateField(index, patch)}
                         onRemove={() =>
                             onChange(fields.filter((_, i) => i !== index))
                         }
-                        onMove={(delta) => moveField(index, delta)}
+                        onMove={(delta) => {
+                            // Move relative to the visible neighbor, not the raw array slot, so a
+                            // swap never lands on a hidden inline-dynamic field.
+                            const target = displayIndex + delta;
+                            if (target < 0 || target >= visible.length) {
+                                return;
+                            }
+                            swapFields(index, visible[target].index);
+                        }}
                     />
-                ),
-            )}
+                </Fragment>
+            ))}
             <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="self-start"
+                className="self-start px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
                 onClick={() => onChange([...fields, makeFieldDraft()])}
             >
                 <Plus className="size-4" /> Add field
@@ -110,6 +123,8 @@ export function FieldsBuilder({
 
 interface FieldRowProps {
     field: FieldDraft;
+    /** Sequential position among the visible "Other inputs" rows, for the "Input N" header. */
+    index: number;
     used: boolean;
     path: string;
     errors: string[];
@@ -122,6 +137,7 @@ interface FieldRowProps {
 
 function FieldRow({
     field,
+    index,
     used,
     path,
     errors,
@@ -132,45 +148,47 @@ function FieldRow({
     onMove,
 }: FieldRowProps) {
     return (
-        <div className="flex flex-col gap-3 rounded-xl bg-muted p-3">
-            <div className="flex items-end gap-2">
-                <div className="flex-1">
-                    <LabeledInput
-                        label="Name"
-                        value={field.name}
-                        onChange={(value) => onChange({ name: value })}
-                        placeholder="greeting"
-                        error={errorFor(errors, `${path}.name`)}
-                    />
+        <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+                <h4 className="font-semibold text-sm">Input {index + 1}</h4>
+                <div className="flex items-center gap-1">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={!canMoveUp}
+                        onClick={() => onMove(-1)}
+                    >
+                        <ChevronUp className="size-4" />
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={!canMoveDown}
+                        onClick={() => onMove(1)}
+                    >
+                        <ChevronDown className="size-4" />
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={onRemove}
+                    >
+                        <Trash2 className="size-4" /> Remove
+                    </Button>
                 </div>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={!canMoveUp}
-                    onClick={() => onMove(-1)}
-                >
-                    <ChevronUp className="size-4" />
-                </Button>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={!canMoveDown}
-                    onClick={() => onMove(1)}
-                >
-                    <ChevronDown className="size-4" />
-                </Button>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={onRemove}
-                >
-                    <Trash2 className="size-4" />
-                </Button>
             </div>
+
+            <LabeledInput
+                label="Name"
+                value={field.name}
+                onChange={(value) => onChange({ name: value })}
+                placeholder="greeting"
+                error={errorFor(errors, `${path}.name`)}
+            />
 
             {used ? null : (
                 <p className="text-amber-600 text-xs dark:text-amber-500">
@@ -201,6 +219,9 @@ export function FieldConfigFields({
     onChange: (patch: Partial<FieldDraft>) => void;
 }) {
     const requiredId = useId();
+    // The options textarea isn't a LabeledInput, so it tracks its own touched state to match the
+    // per-field "no error until touched" behavior.
+    const [optionsTouched, setOptionsTouched] = useState(false);
     const isNumeric = NUMERIC_TYPES.includes(field.type);
     const allowsPattern = PATTERN_TYPES.includes(field.type);
     const showRequired = field.type !== "bool";
@@ -259,7 +280,7 @@ export function FieldConfigFields({
                             })
                         }
                     >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -295,10 +316,12 @@ export function FieldConfigFields({
                         className="font-mono text-xs"
                         value={field.options.join("\n")}
                         aria-invalid={
+                            optionsTouched &&
                             errorFor(errors, `${path}.options`)
                                 ? true
                                 : undefined
                         }
+                        onBlur={() => setOptionsTouched(true)}
                         onChange={(event) =>
                             onChange({
                                 options: event.target.value
@@ -309,7 +332,13 @@ export function FieldConfigFields({
                         }
                         placeholder={"option-a\noption-b"}
                     />
-                    <FieldError message={errorFor(errors, `${path}.options`)} />
+                    <FieldError
+                        message={
+                            optionsTouched
+                                ? errorFor(errors, `${path}.options`)
+                                : undefined
+                        }
+                    />
                 </Labeled>
             ) : null}
 
@@ -329,16 +358,16 @@ export function FieldConfigFields({
             {showAdvanced ? (
                 <div className="flex flex-col gap-3 border-t pt-3">
                     <LabeledInput
-                        label="Help"
+                        label="Help (optional)"
                         value={field.help}
                         onChange={(value) => onChange({ help: value })}
                         placeholder="Shown under the input"
                     />
 
                     {isNumeric ? (
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                             <LabeledInput
-                                label="Min"
+                                label="Min (optional)"
                                 value={field.validation.min}
                                 onChange={(value) =>
                                     setValidation({ min: value })
@@ -347,7 +376,7 @@ export function FieldConfigFields({
                                 error={minError}
                             />
                             <LabeledInput
-                                label="Max"
+                                label="Max (optional)"
                                 value={field.validation.max}
                                 onChange={(value) =>
                                     setValidation({ max: value })
@@ -359,7 +388,7 @@ export function FieldConfigFields({
 
                     {allowsPattern ? (
                         <LabeledInput
-                            label="Pattern (regex)"
+                            label="Pattern (regex, optional)"
                             value={field.validation.pattern}
                             onChange={(value) =>
                                 setValidation({ pattern: value })
@@ -396,15 +425,20 @@ export function LabeledInput({
     placeholder?: string;
     error?: string;
 }) {
+    // Show this field's error only after the user has touched it (blurred once), so an untouched
+    // field never reds — even while other fields in the form are invalid.
+    const [touched, setTouched] = useState(false);
+    const shownError = touched ? error : undefined;
     return (
         <Labeled label={label}>
             <Input
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
+                onBlur={() => setTouched(true)}
                 placeholder={placeholder}
-                aria-invalid={error ? true : undefined}
+                aria-invalid={shownError ? true : undefined}
             />
-            <FieldError message={error} />
+            <FieldError message={shownError} />
         </Labeled>
     );
 }
@@ -419,15 +453,23 @@ export function FieldError({ message }: { message?: string }) {
 export function Labeled({
     label,
     className,
+    action,
     children,
 }: {
     label: string;
     className?: string;
+    /** Optional control rendered at the top-right of the label row (e.g. an inline "+ field" link). */
+    action?: React.ReactNode;
     children: React.ReactNode;
 }) {
     return (
         <div className={cn("flex flex-col gap-1", className)}>
-            <Label className="text-muted-foreground text-xs">{label}</Label>
+            {/* Fixed height so a label row with an action (e.g. the "+ field" link) stays the same
+                height as one without — otherwise paired grid cells misalign their inputs. */}
+            <div className="flex h-5 items-center justify-between gap-2">
+                <Label className="text-muted-foreground text-xs">{label}</Label>
+                {action}
+            </div>
             {children}
         </div>
     );

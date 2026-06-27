@@ -26,7 +26,7 @@ export default function CustomTemplatesIndexPage() {
     return (
         <PageComponentLayout
             title="Request Templates"
-            description="Reusable request types your DAO can build and file."
+            description="Build reusable templates for custom request types."
         >
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
                 <div className="flex justify-end">
