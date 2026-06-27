@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Author a new proposal template (code mode): the shared TemplateEditor validates the manifest JSON
- * live, then saves via the `ChangePolicy`-gated create endpoint. Lives at the reserved `create`
- * slug. A visual constructor is a planned follow-up — this is the code half.
+ * Author a new proposal template: the shared TemplateEditor (Visual constructor by default, with a
+ * Code tab for raw manifest JSON) validates live, then saves via the `ChangePolicy`-gated create
+ * endpoint. Lives at the reserved `create` slug.
  */
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
