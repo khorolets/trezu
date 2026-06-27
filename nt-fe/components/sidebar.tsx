@@ -1,8 +1,8 @@
 "use client";
 
+import { CodeXml, Plus } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Plus } from "lucide-react";
 import { useNextStep } from "nextstepjs";
 import { useEffect, useState } from "react";
 import { SystemStatusBanner } from "@/components/system-status-banner";
@@ -13,6 +13,7 @@ import {
     PAGE_TOUR_SELECTORS,
     useGuestSaveTour,
 } from "@/features/onboarding/steps/page-tours";
+import { useCustomRequestsEnabled } from "@/features/proposal-templates/hooks/use-custom-requests-enabled";
 import { useProposalTemplates } from "@/features/proposal-templates/hooks/use-proposal-templates";
 import { manifestIdOf } from "@/features/proposal-templates/manifest";
 import { useProposals } from "@/hooks/use-proposals";
@@ -197,6 +198,7 @@ export function Sidebar({ onClose }: SidebarProps) {
     });
     const { data: subscription } = useSubscription(treasuryId);
     const { data: proposalTemplates } = useProposalTemplates();
+    const { data: customRequestsEnabled } = useCustomRequestsEnabled();
 
     const { isMobile, mounted, isSidebarOpen: isOpen } = useResponsiveSidebar();
 
@@ -354,39 +356,30 @@ export function Sidebar({ onClose }: SidebarProps) {
                         );
                     })}
 
-                    {(customTemplates.length > 0 || showLabels) && (
-                        <div className="mt-2 flex flex-col gap-1">
-                            {showLabels && (
-                                <div className="flex items-center justify-between px-3 pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            router.push(
-                                                `/${treasuryId}/custom-templates`,
-                                            );
-                                            if (isMobile) onClose();
-                                        }}
-                                        className="cursor-pointer font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
-                                    >
-                                        Custom
-                                    </button>
-                                    <Button
-                                        variant="link"
-                                        size="icon-sm"
-                                        tooltipContent="About custom templates"
-                                        side="right"
-                                        onClick={() => {
-                                            router.push(
-                                                `/${treasuryId}/custom-templates/about`,
-                                            );
-                                            if (isMobile) onClose();
-                                        }}
-                                        className="text-muted-foreground hover:text-foreground"
-                                    >
-                                        <MessageCircleQuestion className="size-4" />
-                                    </Button>
-                                </div>
-                            )}
+                    {customRequestsEnabled && (
+                        <div className="flex flex-col gap-1">
+                            <NavLink
+                                id="request-templates-nav"
+                                isActive={
+                                    pathname ===
+                                    `/${treasuryId}/custom-templates`
+                                }
+                                icon={({ className }) => (
+                                    <CodeXml
+                                        className={
+                                            className as string | undefined
+                                        }
+                                    />
+                                )}
+                                label="Request Templates"
+                                showLabels={showLabels}
+                                onClick={() => {
+                                    router.push(
+                                        `/${treasuryId}/custom-templates`,
+                                    );
+                                    if (isMobile) onClose();
+                                }}
+                            />
                             {customTemplates.map((template) => {
                                 const href = `/${treasuryId}/custom-templates/${manifestIdOf(template.manifest)}`;
                                 return (

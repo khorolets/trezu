@@ -74,6 +74,36 @@ export async function deleteProposalTemplate(
     );
 }
 
+/**
+ * Whether the Custom Requests feature is enabled for a treasury
+ * (`GET /api/treasury/{dao_id}/custom-requests`). Membership-gated; defaults to false.
+ */
+export async function getCustomRequestsEnabled(
+    daoId: string,
+): Promise<boolean> {
+    const response = await axios.get<{ enabled: boolean }>(
+        `${BACKEND_API_BASE}/treasury/${encodeURIComponent(daoId)}/custom-requests`,
+        { withCredentials: true },
+    );
+    return response.data.enabled;
+}
+
+/**
+ * Enable or disable Custom Requests for a treasury
+ * (`PUT /api/treasury/{dao_id}/custom-requests`). Gated on the DAO's `ChangePolicy` permission.
+ */
+export async function setCustomRequestsEnabled(
+    daoId: string,
+    enabled: boolean,
+): Promise<boolean> {
+    const response = await axios.put<{ enabled: boolean }>(
+        `${BACKEND_API_BASE}/treasury/${encodeURIComponent(daoId)}/custom-requests`,
+        { enabled },
+        { withCredentials: true },
+    );
+    return response.data.enabled;
+}
+
 /** Extract the backend's plain-string error body (403/404/409) from an axios error, for toasts. */
 export function apiErrorMessage(error: unknown, fallback: string): string {
     if (isAxiosError(error)) {
