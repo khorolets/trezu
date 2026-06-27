@@ -12,6 +12,7 @@ export interface ProposalTemplate {
     description: string | null;
     manifest: unknown;
     enabled: boolean;
+    pinned: boolean;
     createdBy: string | null;
     createdAt: string;
     updatedAt: string;

@@ -30,6 +30,7 @@ pub struct ProposalTemplate {
     pub description: Option<String>,
     pub manifest: Value,
     pub enabled: bool,
+    pub pinned: bool,
     pub created_by: Option<AccountId>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -43,6 +44,7 @@ struct ProposalTemplateRow {
     description: Option<String>,
     manifest: Value,
     enabled: bool,
+    pinned: bool,
     created_by_wallet: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -59,6 +61,7 @@ impl TryFrom<ProposalTemplateRow> for ProposalTemplate {
             description: r.description,
             manifest: r.manifest,
             enabled: r.enabled,
+            pinned: r.pinned,
             created_by: r.created_by_wallet.map(|s| s.parse()).transpose()?,
             created_at: r.created_at,
             updated_at: r.updated_at,
@@ -89,6 +92,9 @@ pub struct UpdateProposalTemplateRequest {
     /// (the column is NOT NULL, so an absent manifest is never a valid stored state).
     pub manifest: Option<Value>,
     pub enabled: Option<bool>,
+    /// Omitted or `null` leaves the pin state unchanged (COALESCE). Toggling this is how a template
+    /// is pinned to / unpinned from the sidebar.
+    pub pinned: Option<bool>,
 }
 
 fn default_enabled() -> bool {
@@ -200,7 +206,7 @@ async fn fetch_template_by_id(
         r#"
         SELECT pt.id, pt.dao_id, pt.name, pt.description,
                pt.manifest AS "manifest: serde_json::Value",
-               pt.enabled, pt.created_at, pt.updated_at,
+               pt.enabled, pt.pinned, pt.created_at, pt.updated_at,
                u.account_id AS "created_by_wallet?"
         FROM proposal_templates pt
         LEFT JOIN users u ON u.id = pt.created_by
@@ -227,7 +233,7 @@ pub async fn list_proposal_templates(
         r#"
         SELECT pt.id, pt.dao_id, pt.name, pt.description,
                pt.manifest AS "manifest: serde_json::Value",
-               pt.enabled, pt.created_at, pt.updated_at,
+               pt.enabled, pt.pinned, pt.created_at, pt.updated_at,
                u.account_id AS "created_by_wallet?"
         FROM proposal_templates pt
         LEFT JOIN users u ON u.id = pt.created_by
@@ -360,7 +366,8 @@ pub async fn update_proposal_template(
         SET name        = COALESCE($3, name),
             description = COALESCE($4, description),
             manifest    = COALESCE($5, manifest),
-            enabled     = COALESCE($6, enabled)
+            enabled     = COALESCE($6, enabled),
+            pinned      = COALESCE($7, pinned)
         WHERE dao_id = $1 AND id = $2
         RETURNING id
         "#,
@@ -370,6 +377,7 @@ pub async fn update_proposal_template(
         description,
         manifest,
         req.enabled,
+        req.pinned,
     )
     .fetch_optional(&state.db_pool)
     .await
