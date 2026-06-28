@@ -8,8 +8,7 @@
  */
 import { ArrowLeft } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useState } from "react";
 import { PageCard } from "@/components/card";
 import { PageComponentLayout } from "@/components/page-component-layout";
 import {
@@ -32,12 +31,11 @@ export default function CustomTemplatePage() {
     const router = useRouter();
     const slug = params?.slug as string | undefined;
     const { treasuryId } = useTreasury();
-    // accountId is non-null only when fully authenticated (connected + auth + terms accepted).
     // Files through the house `createProposal` helper — the same gasless-relayer path the core
     // proposals (payments, exchange, members…) use: it signs the `add_proposal` delegate action,
     // relays it via the backend, waits for the indexer, invalidates the requests list, and shows the
     // rich "View request" toast. So a custom request behaves exactly like a built-in one.
-    const { accountId, createProposal } = useNear();
+    const { createProposal } = useNear();
     const { data: policy } = useTreasuryPolicy(treasuryId);
     const { data: templates, isLoading } = useProposalTemplates();
     const [submitting, setSubmitting] = useState(false);
@@ -46,16 +44,28 @@ export default function CustomTemplatePage() {
         (candidate) => manifestIdOf(candidate.manifest) === slug,
     );
     const parsed = template ? parseManifest(template.manifest) : null;
+    const templateTitle = parsed?.success ? parsed.data.title : null;
 
-    // Throws on failure (and on a missing session) so ManifestForm only resets the form on success.
-    // `createProposal` already toasts its own relayer errors, so we just re-throw here.
+    // The section layout titles the tab "Request Templates"; on a specific template show its own
+    // name instead (the layout's "%s | Trezu" template doesn't apply to a client-set document.title,
+    // so add the suffix here). Restore the previous title on unmount, like the receipt page.
+    useEffect(() => {
+        if (typeof document === "undefined" || !templateTitle) {
+            return;
+        }
+        const previousTitle = document.title;
+        document.title = `${templateTitle} | Trezu`;
+        return () => {
+            document.title = previousTitle;
+        };
+    }, [templateTitle]);
+
+    // `createProposal` already gates on a full session (toasts the localized "connect + accept terms"
+    // message and throws) and toasts its own relayer errors — so we don't pre-check or re-toast. The
+    // throw propagating out is what lets ManifestForm skip its clear-on-success path on failure.
     async function handleSubmit(values: FieldValues) {
         if (!parsed?.success || !treasuryId) {
             return;
-        }
-        if (!accountId) {
-            toast.error("Sign in and accept the terms to file a proposal");
-            throw new Error("not authenticated");
         }
         setSubmitting(true);
         try {

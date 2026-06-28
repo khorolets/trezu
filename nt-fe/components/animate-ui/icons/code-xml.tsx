@@ -11,33 +11,32 @@ import {
 
 type CodeXmlProps = IconProps<keyof typeof animations>;
 
+// Each keyframe list starts AND ends at the resting (visible) value, so the icon is fully drawn at
+// rest and the hover just plays a flourish — no jump-to-hidden first frame (cf. bookmark's outline).
 const animations = {
     default: {
-        // "<" flies in from the left edge to centre.
+        // "<" dips in toward centre and springs back out to rest.
         left: {
-            initial: { x: 0, opacity: 1 },
+            initial: { x: 0 },
             animate: {
-                x: [-6, 0],
-                opacity: [0, 1],
-                transition: { duration: 0.25, ease: "easeOut" },
+                x: [0, 4, 0],
+                transition: { duration: 0.35, ease: "easeInOut" },
             },
         },
-        // ">" flies in from the right edge to centre.
+        // ">" mirrors it.
         right: {
-            initial: { x: 0, opacity: 1 },
+            initial: { x: 0 },
             animate: {
-                x: [6, 0],
-                opacity: [0, 1],
-                transition: { duration: 0.25, ease: "easeOut" },
+                x: [0, -4, 0],
+                transition: { duration: 0.35, ease: "easeInOut" },
             },
         },
-        // "/" draws itself top → bottom once the brackets have arrived.
+        // "/" erases and redraws itself top → bottom, just after the brackets move.
         slash: {
-            initial: { pathLength: 1, opacity: 1 },
+            initial: { pathLength: 1 },
             animate: {
-                pathLength: [0, 1],
-                opacity: [0, 1],
-                transition: { duration: 0.3, ease: "easeInOut", delay: 0.2 },
+                pathLength: [1, 0, 1],
+                transition: { duration: 0.4, ease: "easeInOut", delay: 0.1 },
             },
         },
     } satisfies Record<string, Variants>,
