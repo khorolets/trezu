@@ -59,8 +59,7 @@ pub async fn get_custom_requests_setting(
 /// `PUT /api/treasury/{dao_id}/custom-requests` — enable or disable the feature for this treasury.
 /// Gated on `ChangePolicy`, matching template authoring. The treasury row is ensured through the
 /// canonical `register_or_refresh_monitored_account` registrar (not a bare upsert) so it goes
-/// through the same SputnikDAO check and `daos` dirty-marking as every other treasury, then the
-/// flag is set.
+/// through the same `.sputnik-dao.near` suffix gate as every other treasury, then the flag is set.
 pub async fn set_custom_requests_setting(
     State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
@@ -72,8 +71,9 @@ pub async fn set_custom_requests_setting(
         .await?;
 
     // Ensure the monitored_accounts row exists via the canonical path: it enforces the
-    // *.sputnik-dao.near gate and marks the daos row dirty for the sync loop. A ChangePolicy holder
-    // implies a real DAO (the policy was fetched above), so NotSputnikDao is a defensive 400.
+    // *.sputnik-dao.near suffix gate (and on an already-tracked treasury also re-marks the daos row
+    // dirty for the sync loop). A ChangePolicy holder implies a real DAO (the policy was fetched
+    // above), so NotSputnikDao is a defensive 400.
     register_or_refresh_monitored_account(&state.db_pool, &dao_id, false)
         .await
         .map_err(|e| match e {
