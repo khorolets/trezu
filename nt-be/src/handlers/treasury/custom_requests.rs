@@ -332,4 +332,53 @@ mod tests {
             "a non-member cannot read the flag"
         );
     }
+
+    #[sqlx::test]
+    async fn test_enable_registers_a_fresh_treasury(pool: PgPool) {
+        let state = test_state(pool.clone());
+        let app = create_routes(state.clone());
+        // Grant ChangePolicy but DO NOT seed a monitored_accounts row, so the PUT exercises the
+        // *fresh-DAO* branch of register_or_refresh_monitored_account (the `.sputnik-dao.near` suffix
+        // check + INSERT with default credits) — the reason the handler routes through it at all.
+        let dao: near_api::AccountId = DAO_ID.parse().unwrap();
+        seed_treasury_policy(
+            &state,
+            &dao,
+            policy_granting(USER_ACCOUNT_ID, &["*:ChangePolicy"]),
+        )
+        .await;
+        let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
+
+        let before: Option<i32> =
+            sqlx::query_scalar("SELECT 1 FROM monitored_accounts WHERE account_id = $1")
+                .bind(DAO_ID)
+                .fetch_optional(&pool)
+                .await
+                .unwrap();
+        assert!(
+            before.is_none(),
+            "precondition: no monitored_accounts row before the PUT"
+        );
+
+        let (status, body) =
+            send(app, "PUT", &cookie, Some(json!({ "enabled": true }))).await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "enabling a fresh DAO should register it and set the flag: {body}"
+        );
+        assert_eq!(enabled_of(&body), Some(true));
+
+        // The registrar created the row (so the UPDATE … RETURNING found it to flip).
+        let after: Option<i32> =
+            sqlx::query_scalar("SELECT 1 FROM monitored_accounts WHERE account_id = $1")
+                .bind(DAO_ID)
+                .fetch_optional(&pool)
+                .await
+                .unwrap();
+        assert!(
+            after.is_some(),
+            "the fresh treasury's monitored_accounts row was created by the registrar"
+        );
+    }
 }

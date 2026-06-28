@@ -397,7 +397,10 @@ export function Sidebar({ onClose }: SidebarProps) {
                                             if (isMobile) onClose();
                                         }}
                                         className={cn(
-                                            "flex min-w-0 flex-1 items-center gap-3 py-[5.5px] font-medium text-inherit text-sm hover:text-inherit",
+                                            // `justify-start` overrides the Button's base
+                                            // `justify-center`, which would otherwise centre the icon
+                                            // in the flex-1 width and shift it right when no chevron.
+                                            "flex min-w-0 flex-1 items-center justify-start gap-3 py-[5.5px] font-medium text-inherit text-sm hover:text-inherit",
                                             showLabels
                                                 ? "px-3"
                                                 : "justify-center px-3",
