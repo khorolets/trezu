@@ -43,7 +43,7 @@ export interface ArgItem {
     value: ArgNode;
 }
 
-/** A fresh args object entry for the builder's "Add key". */
+/** A fresh args object entry for the builder's "Add Key". */
 export function makeArgEntry(): ArgEntry {
     return {
         id: crypto.randomUUID(),
@@ -52,7 +52,7 @@ export function makeArgEntry(): ArgEntry {
     };
 }
 
-/** A fresh args array item wrapping `value`, for the builder's "Add item". */
+/** A fresh args array item wrapping `value`, for the builder's "Add Item". */
 export function makeArgItem(value: ArgNode): ArgItem {
     return { id: crypto.randomUUID(), value };
 }
@@ -155,7 +155,7 @@ export interface ManifestDraft {
     args: ArgEntry[];
 }
 
-/** A blank field row (with a fresh client key) for the builder's "Add field". */
+/** A blank field row (with a fresh client key) for the builder's "Add Field". */
 export function makeFieldDraft(): FieldDraft {
     return {
         key: crypto.randomUUID(),

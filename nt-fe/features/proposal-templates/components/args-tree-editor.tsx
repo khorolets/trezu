@@ -572,7 +572,7 @@ function StaticEntriesEditor({
                 className="self-start"
                 onClick={() => onChange([...entries, makeArgEntry()])}
             >
-                <Plus className="size-4" /> Add key
+                <Plus className="size-4" /> Add Key
             </Button>
         </div>
     );
@@ -655,7 +655,7 @@ function StaticItemsEditor({
                 className="self-start"
                 onClick={addItem}
             >
-                <Plus className="size-4" /> Add item
+                <Plus className="size-4" /> Add Item
             </Button>
         </div>
     );

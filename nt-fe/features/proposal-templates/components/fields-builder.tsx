@@ -115,7 +115,7 @@ export function FieldsBuilder({
                 className="self-start px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
                 onClick={() => onChange([...fields, makeFieldDraft()])}
             >
-                <Plus className="size-4" /> Add field
+                <Plus className="size-4" /> Add Field
             </Button>
         </div>
     );

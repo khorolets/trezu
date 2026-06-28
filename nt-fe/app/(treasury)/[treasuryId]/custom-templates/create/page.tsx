@@ -54,7 +54,7 @@ export default function CreateTemplatePage() {
                     onBack={() =>
                         router.push(`/${treasuryId}/custom-templates`)
                     }
-                    submitLabel="Create template"
+                    submitLabel="Create Template"
                     submittingLabel="Creating…"
                     submitting={createTemplate.isPending}
                     onSubmit={handleCreate}
