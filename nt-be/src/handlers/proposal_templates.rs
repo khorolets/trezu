@@ -438,27 +438,16 @@ pub async fn delete_proposal_template(
 #[cfg(test)]
 mod tests {
     use crate::{
-        AppState,
-        auth::{create_jwt, middleware::AUTH_COOKIE_NAME},
         routes::create_routes,
-        utils::test_utils::{build_test_state, policy_granting, seed_treasury_policy},
+        utils::test_utils::{
+            DAO_ID, USER_ACCOUNT_ID, issue_auth_cookie, policy_granting, seed_change_policy_member,
+            seed_policy_member, seed_treasury_policy, send, test_state,
+        },
     };
-    use axum::{
-        body::{Body, to_bytes},
-        http::{Request, StatusCode},
-    };
+    use axum::http::StatusCode;
     use serde_json::{Value, json};
     use sqlx::PgPool;
-    use std::sync::Arc;
-    use tower::ServiceExt;
     use uuid::Uuid;
-
-    const DAO_ID: &str = "test-dao.sputnik-dao.near";
-    const USER_ACCOUNT_ID: &str = "member.near";
-
-    fn test_state(pool: PgPool) -> Arc<AppState> {
-        Arc::new(build_test_state(pool))
-    }
 
     fn valid_manifest() -> Value {
         json!({
@@ -471,113 +460,6 @@ mod tests {
             "args": { "amount": "{{amount}}" },
             "summary": "Tip {{amount}}"
         })
-    }
-
-    async fn seed_policy_member(pool: &PgPool, dao_id: &str, account_id: &str) {
-        sqlx::query!(
-            "INSERT INTO monitored_accounts (account_id) VALUES ($1) ON CONFLICT (account_id) DO NOTHING",
-            dao_id,
-        )
-        .execute(pool)
-        .await
-        .expect("seed monitored account");
-
-        sqlx::query!(
-            "INSERT INTO daos (dao_id) VALUES ($1) ON CONFLICT (dao_id) DO NOTHING",
-            dao_id,
-        )
-        .execute(pool)
-        .await
-        .expect("seed dao");
-
-        sqlx::query!(
-            r#"
-            INSERT INTO dao_members (dao_id, account_id, is_policy_member, is_saved, is_hidden)
-            VALUES ($1, $2, true, false, false)
-            ON CONFLICT (dao_id, account_id) DO UPDATE SET is_policy_member = true
-            "#,
-            dao_id,
-            account_id,
-        )
-        .execute(pool)
-        .await
-        .expect("seed policy member");
-    }
-
-    /// Seed an account that may author templates: a policy member (for reads/list) AND the
-    /// `ChangePolicy` permission (for create/update/delete writes).
-    async fn seed_author(state: &Arc<AppState>, pool: &PgPool, dao_id: &str, account_id: &str) {
-        seed_policy_member(pool, dao_id, account_id).await;
-        let dao: near_api::AccountId = dao_id.parse().expect("valid dao id");
-        seed_treasury_policy(
-            state,
-            &dao,
-            policy_granting(account_id, &["*:ChangePolicy"]),
-        )
-        .await;
-    }
-
-    async fn issue_auth_cookie(pool: &PgPool, state: &Arc<AppState>, account_id: &str) -> String {
-        let user_id: Uuid = sqlx::query_scalar(
-            "INSERT INTO users (account_id) VALUES ($1) ON CONFLICT (account_id) DO UPDATE SET updated_at = NOW() RETURNING id",
-        )
-        .bind(account_id)
-        .fetch_one(pool)
-        .await
-        .expect("create test user");
-
-        let jwt = create_jwt(
-            account_id,
-            state.env_vars.jwt_secret.as_bytes(),
-            state.env_vars.jwt_expiry_hours,
-        )
-        .expect("create JWT");
-
-        sqlx::query!(
-            "INSERT INTO user_sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-            user_id,
-            jwt.token_hash,
-            jwt.expires_at,
-        )
-        .execute(pool)
-        .await
-        .expect("create session");
-
-        format!("{AUTH_COOKIE_NAME}={}", jwt.token)
-    }
-
-    async fn response_text(response: axum::response::Response) -> String {
-        String::from_utf8(
-            to_bytes(response.into_body(), usize::MAX)
-                .await
-                .expect("read body")
-                .to_vec(),
-        )
-        .expect("utf-8 body")
-    }
-
-    /// Send one request through the router and return (status, body text).
-    async fn send(
-        app: axum::Router,
-        method: &str,
-        uri: String,
-        cookie: &str,
-        body: Option<serde_json::Value>,
-    ) -> (StatusCode, String) {
-        let mut builder = Request::builder()
-            .method(method)
-            .uri(uri)
-            .header("cookie", cookie);
-        let body = match body {
-            Some(v) => {
-                builder = builder.header("content-type", "application/json");
-                Body::from(v.to_string())
-            }
-            None => Body::empty(),
-        };
-        let resp = app.oneshot(builder.body(body).unwrap()).await.unwrap();
-        let status = resp.status();
-        (status, response_text(resp).await)
     }
 
     /// A template whose creator is unknown (`created_by = NULL`, e.g. an imported or directly-seeded
@@ -625,7 +507,7 @@ mod tests {
         let app = create_routes(state.clone());
 
         let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
-        seed_author(&state, &pool, DAO_ID, USER_ACCOUNT_ID).await;
+        seed_change_policy_member(&state, &pool, DAO_ID, USER_ACCOUNT_ID).await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
         let mut manifest = valid_manifest();
@@ -647,7 +529,7 @@ mod tests {
         let app = create_routes(state.clone());
 
         let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
-        seed_author(&state, &pool, DAO_ID, USER_ACCOUNT_ID).await;
+        seed_change_policy_member(&state, &pool, DAO_ID, USER_ACCOUNT_ID).await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
         // CREATE
@@ -1021,7 +903,7 @@ mod tests {
         let app = create_routes(state.clone());
         let base = format!("/api/treasury/{DAO_ID}/proposal-templates");
 
-        seed_author(&state, &pool, DAO_ID, USER_ACCOUNT_ID).await;
+        seed_change_policy_member(&state, &pool, DAO_ID, USER_ACCOUNT_ID).await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
         let padded = json!({
