@@ -101,136 +101,19 @@ pub async fn set_custom_requests_setting(
 #[cfg(test)]
 mod tests {
     use crate::{
-        AppState,
-        auth::{create_jwt, middleware::AUTH_COOKIE_NAME},
         config::{PlanType, get_initial_credits},
         routes::create_routes,
-        utils::test_utils::{build_test_state, policy_granting, seed_treasury_policy},
+        utils::test_utils::{
+            DAO_ID, USER_ACCOUNT_ID, issue_auth_cookie, policy_granting, seed_change_policy_member,
+            seed_policy_member, seed_treasury_policy, send, test_state,
+        },
     };
-    use axum::{
-        body::{Body, to_bytes},
-        http::{Request, StatusCode},
-    };
+    use axum::http::StatusCode;
     use serde_json::{Value, json};
     use sqlx::PgPool;
-    use std::sync::Arc;
-    use tower::ServiceExt;
-    use uuid::Uuid;
-
-    const DAO_ID: &str = "test-dao.sputnik-dao.near";
-    const USER_ACCOUNT_ID: &str = "member.near";
-
-    fn test_state(pool: PgPool) -> Arc<AppState> {
-        Arc::new(build_test_state(pool))
-    }
 
     fn uri() -> String {
         format!("/api/treasury/{DAO_ID}/custom-requests")
-    }
-
-    /// Seed a DAO with `account_id` as a policy member (enough for the membership-gated GET).
-    async fn seed_policy_member(pool: &PgPool, dao_id: &str, account_id: &str) {
-        sqlx::query!(
-            "INSERT INTO monitored_accounts (account_id) VALUES ($1) ON CONFLICT (account_id) DO NOTHING",
-            dao_id,
-        )
-        .execute(pool)
-        .await
-        .expect("seed monitored account");
-        sqlx::query!(
-            "INSERT INTO daos (dao_id) VALUES ($1) ON CONFLICT (dao_id) DO NOTHING",
-            dao_id,
-        )
-        .execute(pool)
-        .await
-        .expect("seed dao");
-        sqlx::query!(
-            r#"
-            INSERT INTO dao_members (dao_id, account_id, is_policy_member, is_saved, is_hidden)
-            VALUES ($1, $2, true, false, false)
-            ON CONFLICT (dao_id, account_id) DO UPDATE SET is_policy_member = true
-            "#,
-            dao_id,
-            account_id,
-        )
-        .execute(pool)
-        .await
-        .expect("seed policy member");
-    }
-
-    /// Member + the on-chain `ChangePolicy` permission — i.e. someone allowed to flip the flag.
-    async fn seed_change_policy_member(
-        state: &Arc<AppState>,
-        pool: &PgPool,
-        dao_id: &str,
-        account_id: &str,
-    ) {
-        seed_policy_member(pool, dao_id, account_id).await;
-        let dao: near_api::AccountId = dao_id.parse().expect("valid dao id");
-        seed_treasury_policy(
-            state,
-            &dao,
-            policy_granting(account_id, &["*:ChangePolicy"]),
-        )
-        .await;
-    }
-
-    async fn issue_auth_cookie(pool: &PgPool, state: &Arc<AppState>, account_id: &str) -> String {
-        let user_id: Uuid = sqlx::query_scalar(
-            "INSERT INTO users (account_id) VALUES ($1) ON CONFLICT (account_id) DO UPDATE SET updated_at = NOW() RETURNING id",
-        )
-        .bind(account_id)
-        .fetch_one(pool)
-        .await
-        .expect("create test user");
-
-        let jwt = create_jwt(
-            account_id,
-            state.env_vars.jwt_secret.as_bytes(),
-            state.env_vars.jwt_expiry_hours,
-        )
-        .expect("create JWT");
-
-        sqlx::query!(
-            "INSERT INTO user_sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-            user_id,
-            jwt.token_hash,
-            jwt.expires_at,
-        )
-        .execute(pool)
-        .await
-        .expect("create session");
-
-        format!("{AUTH_COOKIE_NAME}={}", jwt.token)
-    }
-
-    async fn send(
-        app: axum::Router,
-        method: &str,
-        cookie: &str,
-        body: Option<Value>,
-    ) -> (StatusCode, String) {
-        let mut builder = Request::builder()
-            .method(method)
-            .uri(uri())
-            .header("cookie", cookie);
-        let body = match body {
-            Some(v) => {
-                builder = builder.header("content-type", "application/json");
-                Body::from(v.to_string())
-            }
-            None => Body::empty(),
-        };
-        let resp = app.oneshot(builder.body(body).unwrap()).await.unwrap();
-        let status = resp.status();
-        let text = String::from_utf8(
-            to_bytes(resp.into_body(), usize::MAX)
-                .await
-                .expect("read body")
-                .to_vec(),
-        )
-        .expect("utf-8 body");
-        (status, text)
     }
 
     fn enabled_of(body: &str) -> Option<bool> {
@@ -244,7 +127,7 @@ mod tests {
         seed_policy_member(&pool, DAO_ID, USER_ACCOUNT_ID).await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
-        let (status, body) = send(app, "GET", &cookie, None).await;
+        let (status, body) = send(app, "GET", uri(), &cookie, None).await;
         assert_eq!(status, StatusCode::OK, "a member can read the flag: {body}");
         assert_eq!(
             enabled_of(&body),
@@ -264,26 +147,28 @@ mod tests {
         let (status, body) = send(
             app.clone(),
             "PUT",
+            uri(),
             &cookie,
             Some(json!({ "enabled": true })),
         )
         .await;
         assert_eq!(status, StatusCode::OK, "enable should succeed: {body}");
         assert_eq!(enabled_of(&body), Some(true));
-        let (_, body) = send(app.clone(), "GET", &cookie, None).await;
+        let (_, body) = send(app.clone(), "GET", uri(), &cookie, None).await;
         assert_eq!(enabled_of(&body), Some(true), "GET reflects the enable");
 
         // DISABLE -> 200, and the flag toggles back.
         let (status, body) = send(
             app.clone(),
             "PUT",
+            uri(),
             &cookie,
             Some(json!({ "enabled": false })),
         )
         .await;
         assert_eq!(status, StatusCode::OK, "disable should succeed: {body}");
         assert_eq!(enabled_of(&body), Some(false));
-        let (_, body) = send(app, "GET", &cookie, None).await;
+        let (_, body) = send(app, "GET", uri(), &cookie, None).await;
         assert_eq!(enabled_of(&body), Some(false), "GET reflects the disable");
     }
 
@@ -302,7 +187,7 @@ mod tests {
         .await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
-        let (status, _) = send(app, "PUT", &cookie, Some(json!({ "enabled": true }))).await;
+        let (status, _) = send(app, "PUT", uri(), &cookie, Some(json!({ "enabled": true }))).await;
         assert_eq!(
             status,
             StatusCode::FORBIDDEN,
@@ -326,7 +211,7 @@ mod tests {
         .await;
         let cookie = issue_auth_cookie(&pool, &state, USER_ACCOUNT_ID).await;
 
-        let (status, _) = send(app, "GET", &cookie, None).await;
+        let (status, _) = send(app, "GET", uri(), &cookie, None).await;
         assert_eq!(
             status,
             StatusCode::FORBIDDEN,
@@ -362,7 +247,7 @@ mod tests {
         );
 
         let (status, body) =
-            send(app, "PUT", &cookie, Some(json!({ "enabled": true }))).await;
+            send(app, "PUT", uri(), &cookie, Some(json!({ "enabled": true }))).await;
         assert_eq!(
             status,
             StatusCode::OK,
