@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useNextStep } from "nextstepjs";
@@ -12,6 +13,9 @@ import {
     PAGE_TOUR_SELECTORS,
     useGuestSaveTour,
 } from "@/features/onboarding/steps/page-tours";
+import { useCustomRequestsEnabled } from "@/features/proposal-templates/hooks/use-custom-requests-enabled";
+import { useProposalTemplates } from "@/features/proposal-templates/hooks/use-proposal-templates";
+import { manifestIdOf } from "@/features/proposal-templates/manifest";
 import { useProposals } from "@/hooks/use-proposals";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useTreasury } from "@/hooks/use-treasury";
@@ -23,6 +27,7 @@ import { ArrowUpDown } from "./animate-ui/icons/arrow-up-down";
 import { Bookmark } from "./animate-ui/icons/bookmark";
 import { ChartColumn } from "./animate-ui/icons/chart-column";
 import { ChartNoAxesCombined } from "./animate-ui/icons/chart-no-axes-combined";
+import { CodeXml } from "./animate-ui/icons/code-xml";
 import { ContactRound } from "./animate-ui/icons/contact-round";
 import { CreditCard } from "./animate-ui/icons/credit-card";
 import { AnimateIcon, type IconProps } from "./animate-ui/icons/icon";
@@ -84,7 +89,9 @@ function NavLink({
                 <div className="flex w-full min-w-0 items-center gap-2">
                     <div className="flex min-w-0 items-center gap-3">
                         <Icon className="size-5 shrink-0" />
-                        {showLabels && <span>{label}</span>}
+                        {showLabels && (
+                            <span className="truncate">{label}</span>
+                        )}
                     </div>
                     {showLabels && (showBadge || endAdornment) && (
                         <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -174,6 +181,7 @@ export function Sidebar({ onClose }: SidebarProps) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [hasInitialized, setHasInitialized] = useState(false);
     const [supportModalOpen, setSupportModalOpen] = useState(false);
+    const [templatesExpanded, setTemplatesExpanded] = useState(true);
     const { accountId } = useNear();
     const tNav = useTranslations("nav");
     const tPages = useTranslations("pages");
@@ -193,10 +201,21 @@ export function Sidebar({ onClose }: SidebarProps) {
         }),
     });
     const { data: subscription } = useSubscription(treasuryId);
+    const { data: proposalTemplates } = useProposalTemplates();
+    const { data: customRequestsEnabled } = useCustomRequestsEnabled();
 
     const { isMobile, mounted, isSidebarOpen: isOpen } = useResponsiveSidebar();
 
     const isReduced = !isMobile && !isOpen;
+    const showLabels = isMobile ? isOpen : !isReduced;
+    // Only pinned (and enabled, slug-resolvable) templates show under the sidebar chevron; the rest
+    // live on the Request Templates index. Pinning is toggled from that page's ⋮ menu.
+    const pinnedTemplates = (proposalTemplates ?? []).filter(
+        (template) =>
+            template.enabled &&
+            template.pinned &&
+            manifestIdOf(template.manifest),
+    );
     const saveTreasuryMutation = useSaveTreasuryMutation(accountId, treasuryId);
     useGuestSaveTour(accountId ?? undefined, isSaved ?? false);
 
@@ -322,7 +341,6 @@ export function Sidebar({ onClose }: SidebarProps) {
                         const showBadge =
                             link.path === "requests" &&
                             (proposals?.total ?? 0) > 0;
-                        const showLabels = isMobile ? isOpen : !isReduced;
 
                         return (
                             <NavLink
@@ -345,6 +363,108 @@ export function Sidebar({ onClose }: SidebarProps) {
                             />
                         );
                     })}
+
+                    {customRequestsEnabled && (
+                        <div className="flex flex-col gap-1">
+                            {/* Header is two targets: the label navigates to the index, the chevron
+                                (only when something is pinned) toggles the pinned list — so they
+                                can't be nested buttons. */}
+                            <div
+                                className={cn(
+                                    "flex items-center rounded-md transition-colors",
+                                    pathname ===
+                                        `/${treasuryId}/custom-templates`
+                                        ? "bg-accent text-accent-foreground"
+                                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                                )}
+                            >
+                                <AnimateIcon animateOnHover="default" asChild>
+                                    <Button
+                                        id="request-templates-nav"
+                                        variant="link"
+                                        // Collapsed sidebar is icon-only, so restore the hover label
+                                        // there (and keep the tour selector id on this element).
+                                        tooltipContent={
+                                            showLabels
+                                                ? undefined
+                                                : "Request Templates"
+                                        }
+                                        side="right"
+                                        onClick={() => {
+                                            router.push(
+                                                `/${treasuryId}/custom-templates`,
+                                            );
+                                            if (isMobile) onClose();
+                                        }}
+                                        className={cn(
+                                            // `justify-start` overrides the Button's base
+                                            // `justify-center`, which would otherwise centre the icon
+                                            // in the flex-1 width and shift it right when no chevron.
+                                            "flex min-w-0 flex-1 items-center justify-start gap-3 py-[5.5px] font-medium text-inherit text-sm hover:text-inherit",
+                                            showLabels
+                                                ? "px-3"
+                                                : "justify-center px-3",
+                                        )}
+                                    >
+                                        <CodeXml className="size-5 shrink-0" />
+                                        {showLabels && (
+                                            <span className="truncate">
+                                                Request Templates
+                                            </span>
+                                        )}
+                                    </Button>
+                                </AnimateIcon>
+                                {showLabels && pinnedTemplates.length > 0 && (
+                                    <button
+                                        type="button"
+                                        aria-label={
+                                            templatesExpanded
+                                                ? "Collapse pinned templates"
+                                                : "Expand pinned templates"
+                                        }
+                                        aria-expanded={templatesExpanded}
+                                        onClick={() =>
+                                            setTemplatesExpanded(
+                                                (value) => !value,
+                                            )
+                                        }
+                                        className="shrink-0 cursor-pointer px-2 py-[5.5px]"
+                                    >
+                                        <ChevronDown
+                                            className={cn(
+                                                "size-4 transition-transform",
+                                                !templatesExpanded &&
+                                                    "-rotate-90",
+                                            )}
+                                        />
+                                    </button>
+                                )}
+                            </div>
+                            {showLabels && templatesExpanded && (
+                                // Indent so a child's icon lines up under the parent's *text*:
+                                // header text starts at 44px (px-3 + 20px icon + gap-3); the child's
+                                // own NavLink adds px-3 (12px), so the wrapper supplies the other 32.
+                                <div className="flex flex-col gap-1 pl-8">
+                                    {pinnedTemplates.map((template) => {
+                                        const href = `/${treasuryId}/custom-templates/${manifestIdOf(template.manifest)}`;
+                                        return (
+                                            <NavLink
+                                                key={template.id}
+                                                isActive={pathname === href}
+                                                icon={Bookmark}
+                                                label={template.name}
+                                                showLabels={showLabels}
+                                                onClick={() => {
+                                                    router.push(href);
+                                                    if (isMobile) onClose();
+                                                }}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </nav>
 
                 <div className="hidden lg:flex flex-col w-full justify-center items-center gap-2">
