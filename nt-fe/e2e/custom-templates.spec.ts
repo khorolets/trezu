@@ -215,7 +215,9 @@ test.describe("Custom Templates — authoring", () => {
 
         // Name is addressed by its aria-label — its placeholder "Set Greeting" collides with the
         // manifest textarea's example and the Visual builder's Title field.
-        await page.getByRole("textbox", { name: "Name" }).fill("My Template");
+        await page
+            .getByRole("textbox", { name: "Name", exact: true })
+            .fill("My Template");
         await expect(submit).toBeEnabled();
     });
 
@@ -226,7 +228,7 @@ test.describe("Custom Templates — authoring", () => {
         await page.goto(`/${TREASURY_ID}/custom-templates/create`);
 
         // Name is addressed by its aria-label (see submit-gating for the placeholder collision).
-        const name = page.getByRole("textbox", { name: "Name" });
+        const name = page.getByRole("textbox", { name: "Name", exact: true });
         await expect(name).toBeVisible({ timeout: 15000 });
 
         // Untouched → no error yet (editing the builder must not light it up).
@@ -274,7 +276,9 @@ test.describe("Custom Templates — authoring", () => {
         await page.goto(`/${TREASURY_ID}/custom-templates/create`);
         await page.getByRole("tab", { name: "Code" }).click();
         await page.locator("textarea").fill(VALID_MANIFEST_TEXT);
-        await page.getByRole("textbox", { name: "Name" }).fill("Set Greeting");
+        await page
+            .getByRole("textbox", { name: "Name", exact: true })
+            .fill("Set Greeting");
 
         await page.getByRole("button", { name: "Create Template" }).click();
 
