@@ -200,6 +200,7 @@ export function TemplateEditor({
             <InputBlock title="Name" invalid={nameTouched && nameMissing}>
                 <LargeInput
                     borderless
+                    aria-label="Name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     onBlur={() => setNameTouched(true)}
