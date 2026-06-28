@@ -213,13 +213,9 @@ test.describe("Custom Templates — authoring", () => {
         // Valid manifest, but the name is still empty → still gated.
         await expect(submit).toBeDisabled();
 
-        // The Name field is the first textbox in the editor (placeholder "Set Greeting" collides
-        // with the manifest textarea's example, so target by position instead).
-        await page
-            .locator("main")
-            .getByRole("textbox")
-            .first()
-            .fill("My Template");
+        // Name is addressed by its aria-label — its placeholder "Set Greeting" collides with the
+        // manifest textarea's example and the Visual builder's Title field.
+        await page.getByRole("textbox", { name: "Name" }).fill("My Template");
         await expect(submit).toBeEnabled();
     });
 
@@ -229,8 +225,8 @@ test.describe("Custom Templates — authoring", () => {
         await setupMocks(page, []);
         await page.goto(`/${TREASURY_ID}/custom-templates/create`);
 
-        // Name is the first textbox in the editor (see submit-gating for why position, not placeholder).
-        const name = page.locator("main").getByRole("textbox").first();
+        // Name is addressed by its aria-label (see submit-gating for the placeholder collision).
+        const name = page.getByRole("textbox", { name: "Name" });
         await expect(name).toBeVisible({ timeout: 15000 });
 
         // Untouched → no error yet (editing the builder must not light it up).
@@ -278,11 +274,7 @@ test.describe("Custom Templates — authoring", () => {
         await page.goto(`/${TREASURY_ID}/custom-templates/create`);
         await page.getByRole("tab", { name: "Code" }).click();
         await page.locator("textarea").fill(VALID_MANIFEST_TEXT);
-        await page
-            .locator("main")
-            .getByRole("textbox")
-            .first()
-            .fill("Set Greeting");
+        await page.getByRole("textbox", { name: "Name" }).fill("Set Greeting");
 
         await page.getByRole("button", { name: "Create Template" }).click();
 
@@ -291,13 +283,34 @@ test.describe("Custom Templates — authoring", () => {
         });
         expect(created).toMatchObject({ name: "Set Greeting" });
     });
+
+    test("visual mode: a required field reds only after it is blurred", async ({
+        page,
+    }) => {
+        await setupMocks(page, []);
+        await page.goto(`/${TREASURY_ID}/custom-templates/create`);
+
+        // The editor opens in the Visual builder. The Receiver field is required, so the empty draft
+        // is already invalid — but the error must stay hidden until that input is touched. The unit
+        // tests pin the initial-render half; this is the after-blur half they defer to e2e.
+        const receiver = page.getByPlaceholder("guestbook.near");
+        await expect(receiver).toBeVisible({ timeout: 15000 });
+        await expect(receiver).not.toHaveAttribute("aria-invalid", "true");
+
+        await receiver.focus();
+        await receiver.blur();
+        await expect(receiver).toHaveAttribute("aria-invalid", "true");
+    });
 });
 
 test.describe("Custom Templates — pin", () => {
-    test("'Pin to the Sidebar' fires a PUT with pinned:true", async ({
+    test("'Pin to the Sidebar' fires a PUT and the menu flips to 'Unpin Template'", async ({
         page,
     }) => {
-        await setupMocks(page, [template({ pinned: false })]);
+        // Mutable so the post-mutation refetch (the hook invalidates the list query) reflects the
+        // new pinned state — that invalidation→refetch→UI contract is what this asserts.
+        const templates = [template({ pinned: false })];
+        await setupMocks(page, templates);
 
         let putBody: Record<string, unknown> | null = null;
         await page.route("**/proposal-templates/*", async (route) => {
@@ -305,7 +318,8 @@ test.describe("Custom Templates — pin", () => {
                 return route.fallback();
             }
             putBody = route.request().postDataJSON();
-            return json(route, template({ pinned: true }));
+            templates[0] = { ...templates[0], ...putBody };
+            return json(route, templates[0]);
         });
 
         await page.goto(`/${TREASURY_ID}/custom-templates`);
@@ -318,7 +332,13 @@ test.describe("Custom Templates — pin", () => {
             .getByRole("menuitem", { name: /pin to the sidebar/i })
             .click();
 
+        // The request carried the flag...
         await expect.poll(() => putBody).toMatchObject({ pinned: true });
+        // ...and after the list refetches, re-opening the row menu shows the flipped label.
+        await page.getByRole("button", { name: "Template actions" }).click();
+        await expect(
+            page.getByRole("menuitem", { name: /unpin template/i }),
+        ).toBeVisible();
     });
 });
 
