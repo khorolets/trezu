@@ -151,7 +151,7 @@ function TemplateRow({
                             ) : (
                                 <>
                                     <Pin className="size-4" /> Pin to the
-                                    sidebar
+                                    Sidebar
                                 </>
                             )}
                         </DropdownMenuItem>

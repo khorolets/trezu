@@ -158,7 +158,7 @@ export function ManifestForm({
         setFormKey((key) => key + 1);
     };
 
-    const label = submitLabel ?? "File proposal";
+    const label = submitLabel ?? "File Proposal";
 
     return (
         <Form {...form}>

@@ -107,7 +107,7 @@ export default function EditTemplatePage() {
                             null,
                             2,
                         )}
-                        submitLabel="Save changes"
+                        submitLabel="Save Changes"
                         submitting={updateTemplate.isPending}
                         onSubmit={handleUpdate}
                         footer={
@@ -121,7 +121,7 @@ export default function EditTemplatePage() {
                                 }
                                 onClick={() => setConfirmingDelete(true)}
                             >
-                                Delete template
+                                Delete Template
                             </Button>
                         }
                     />
