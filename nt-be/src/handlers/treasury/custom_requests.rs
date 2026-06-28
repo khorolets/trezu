@@ -103,6 +103,7 @@ mod tests {
     use crate::{
         AppState,
         auth::{create_jwt, middleware::AUTH_COOKIE_NAME},
+        config::{PlanType, get_initial_credits},
         routes::create_routes,
         utils::test_utils::{build_test_state, policy_granting, seed_treasury_policy},
     };
@@ -369,16 +370,24 @@ mod tests {
         );
         assert_eq!(enabled_of(&body), Some(true));
 
-        // The registrar created the row (so the UPDATE … RETURNING found it to flip).
-        let after: Option<i32> =
-            sqlx::query_scalar("SELECT 1 FROM monitored_accounts WHERE account_id = $1")
-                .bind(DAO_ID)
-                .fetch_optional(&pool)
-                .await
-                .unwrap();
-        assert!(
-            after.is_some(),
-            "the fresh treasury's monitored_accounts row was created by the registrar"
+        // The registrar created the row with Plus-plan defaults — the load-bearing reason the handler
+        // routes through it (cf. set_custom_requests_setting doc). Assert against the same source of
+        // truth so a refactor that quietly drops the defaults fails here.
+        let (plan, export_credits, batch_payment_credits, gas_covered): (String, i32, i32, i32) =
+            sqlx::query_as(
+                "SELECT plan_type::text, export_credits, batch_payment_credits, gas_covered_transactions \
+                 FROM monitored_accounts WHERE account_id = $1",
+            )
+            .bind(DAO_ID)
+            .fetch_one(&pool)
+            .await
+            .expect("the fresh treasury's monitored_accounts row was created by the registrar");
+        let (want_export, want_batch, want_gas) = get_initial_credits(PlanType::Plus);
+        assert_eq!(plan, "plus", "fresh DAO registers on the Plus plan");
+        assert_eq!(
+            (export_credits, batch_payment_credits, gas_covered),
+            (want_export, want_batch, want_gas),
+            "fresh DAO inherits get_initial_credits(Plus)"
         );
     }
 }
