@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, CodeXml } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useNextStep } from "nextstepjs";
@@ -27,6 +27,7 @@ import { ArrowUpDown } from "./animate-ui/icons/arrow-up-down";
 import { Bookmark } from "./animate-ui/icons/bookmark";
 import { ChartColumn } from "./animate-ui/icons/chart-column";
 import { ChartNoAxesCombined } from "./animate-ui/icons/chart-no-axes-combined";
+import { CodeXml } from "./animate-ui/icons/code-xml";
 import { ContactRound } from "./animate-ui/icons/contact-round";
 import { CreditCard } from "./animate-ui/icons/credit-card";
 import { AnimateIcon, type IconProps } from "./animate-ui/icons/icon";
@@ -377,37 +378,39 @@ export function Sidebar({ onClose }: SidebarProps) {
                                         : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                                 )}
                             >
-                                <Button
-                                    id="request-templates-nav"
-                                    variant="link"
-                                    // Collapsed sidebar is icon-only, so restore the hover label
-                                    // there (and keep the tour selector id on this element).
-                                    tooltipContent={
-                                        showLabels
-                                            ? undefined
-                                            : "Request Templates"
-                                    }
-                                    side="right"
-                                    onClick={() => {
-                                        router.push(
-                                            `/${treasuryId}/custom-templates`,
-                                        );
-                                        if (isMobile) onClose();
-                                    }}
-                                    className={cn(
-                                        "flex min-w-0 flex-1 items-center gap-3 py-[5.5px] font-medium text-inherit text-sm hover:text-inherit",
-                                        showLabels
-                                            ? "px-3"
-                                            : "justify-center px-3",
-                                    )}
-                                >
-                                    <CodeXml className="size-5 shrink-0" />
-                                    {showLabels && (
-                                        <span className="truncate">
-                                            Request Templates
-                                        </span>
-                                    )}
-                                </Button>
+                                <AnimateIcon animateOnHover="default" asChild>
+                                    <Button
+                                        id="request-templates-nav"
+                                        variant="link"
+                                        // Collapsed sidebar is icon-only, so restore the hover label
+                                        // there (and keep the tour selector id on this element).
+                                        tooltipContent={
+                                            showLabels
+                                                ? undefined
+                                                : "Request Templates"
+                                        }
+                                        side="right"
+                                        onClick={() => {
+                                            router.push(
+                                                `/${treasuryId}/custom-templates`,
+                                            );
+                                            if (isMobile) onClose();
+                                        }}
+                                        className={cn(
+                                            "flex min-w-0 flex-1 items-center gap-3 py-[5.5px] font-medium text-inherit text-sm hover:text-inherit",
+                                            showLabels
+                                                ? "px-3"
+                                                : "justify-center px-3",
+                                        )}
+                                    >
+                                        <CodeXml className="size-5 shrink-0" />
+                                        {showLabels && (
+                                            <span className="truncate">
+                                                Request Templates
+                                            </span>
+                                        )}
+                                    </Button>
+                                </AnimateIcon>
                                 {showLabels && pinnedTemplates.length > 0 && (
                                     <button
                                         type="button"

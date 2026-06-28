@@ -11,6 +11,9 @@
  * the runtime manifest), so values flow as the generic `FieldValues`.
  */
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Loader2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
 import { type ControllerRenderProps, useForm } from "react-hook-form";
 import { Button } from "@/components/button";
 import { InputBlock } from "@/components/input-block";
@@ -31,7 +34,8 @@ import type { Manifest, ManifestField } from "../manifest";
 
 interface ManifestFormProps {
     manifest: Manifest;
-    onSubmit: (values: FieldValues) => void;
+    /** Throw to signal failure (or a missing session); resolving is treated as a filed proposal. */
+    onSubmit: (values: FieldValues) => void | Promise<void>;
     submitting?: boolean;
     submitLabel?: string;
 }
@@ -40,6 +44,13 @@ type FieldControl = ControllerRenderProps<FieldValues, string>;
 
 const SELECT_TRIGGER_CLASS =
     "h-auto w-full border-0 bg-transparent px-0 shadow-none focus-visible:ring-0";
+
+// Same slide as the core step forms: the cleared set exits left, the fresh one enters from the right.
+const SLIDE_VARIANTS = {
+    enter: { x: "100%", opacity: 0 },
+    center: { x: 0, opacity: 1 },
+    exit: { x: "-100%", opacity: 0 },
+};
 
 /** The current value as a string for text-like inputs (form state is string-valued except bool). */
 function asText(value: unknown): string {
@@ -131,42 +142,85 @@ export function ManifestForm({
         defaultValues: defaultValuesFor(manifest),
         mode: "onBlur",
     });
+    // Bumped on a successful submit so the filled fields slide out and a fresh empty set slides in —
+    // the same clear-with-slide the core step forms do (StepWizard) when they reset to step 0.
+    const [formKey, setFormKey] = useState(0);
+
+    // Clear the form only after a successful submit (the page throws on failure / no session), so a
+    // filed proposal leaves an empty form instead of all the values still sitting there.
+    const submit = async (values: FieldValues) => {
+        try {
+            await onSubmit(values);
+        } catch {
+            return;
+        }
+        form.reset(defaultValuesFor(manifest));
+        setFormKey((key) => key + 1);
+    };
+
+    const label = submitLabel ?? "File proposal";
 
     return (
         <Form {...form}>
             <form
-                onSubmit={form.handleSubmit(onSubmit)}
+                onSubmit={form.handleSubmit(submit)}
                 className="flex flex-col gap-3"
             >
-                {manifest.fields.map((field) => (
-                    <FormField
-                        key={field.name}
-                        control={form.control}
-                        name={field.name}
-                        render={({ field: control, fieldState }) => (
-                            <FormItem>
-                                <InputBlock
-                                    title={`${field.label}${field.required ? " *" : ""}`}
-                                    info={field.help}
-                                    invalid={!!fieldState.error}
-                                >
-                                    <FieldControlInput
-                                        field={field}
-                                        control={control}
-                                    />
-                                </InputBlock>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                ))}
-                <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full"
-                    disabled={submitting}
-                >
-                    {submitLabel ?? "File proposal"}
+                <div className="relative overflow-hidden">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                        <motion.div
+                            key={formKey}
+                            variants={SLIDE_VARIANTS}
+                            initial="enter"
+                            animate="center"
+                            exit="exit"
+                            transition={{
+                                x: {
+                                    type: "tween",
+                                    duration: 0.25,
+                                    ease: "easeInOut",
+                                },
+                                opacity: { duration: 0.2 },
+                            }}
+                            className="flex flex-col gap-3"
+                        >
+                            {manifest.fields.map((field) => (
+                                <FormField
+                                    key={field.name}
+                                    control={form.control}
+                                    name={field.name}
+                                    render={({
+                                        field: control,
+                                        fieldState,
+                                    }) => (
+                                        <FormItem>
+                                            <InputBlock
+                                                title={field.label}
+                                                info={field.help}
+                                                invalid={!!fieldState.error}
+                                            >
+                                                <FieldControlInput
+                                                    field={field}
+                                                    control={control}
+                                                />
+                                            </InputBlock>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            ))}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+                <Button type="submit" className="w-full" disabled={submitting}>
+                    {submitting ? (
+                        <>
+                            <Loader2 className="mr-2 size-4 animate-spin" />
+                            {label}
+                        </>
+                    ) : (
+                        label
+                    )}
                 </Button>
             </form>
         </Form>
