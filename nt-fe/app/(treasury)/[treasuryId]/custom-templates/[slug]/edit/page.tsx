@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams, useRouter } from "next/navigation";
 /**
  * Edit or delete an existing template. Reuses TemplateEditor (Visual constructor by default, Code
  * tab for raw JSON) pre-filled with the template's current name + manifest, saving via the
@@ -7,7 +8,6 @@
  * non-author hitting save/delete gets the backend's 403 as a toast.
  */
 import { useTranslations } from "next-intl";
-import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/button";

@@ -2322,6 +2322,18 @@
             "fileProposal": "Ajukan Proposal"
         },
         "collapsePinned": "Ciutkan templat yang disematkan",
-        "expandPinned": "Bentangkan templat yang disematkan"
+        "expandPinned": "Bentangkan templat yang disematkan",
+        "validation": {
+            "required": "{label} wajib diisi",
+            "account": "{label} harus berupa akun NEAR yang valid",
+            "wholeNumber": "{label} harus berupa bilangan bulat",
+            "number": "{label} harus berupa angka",
+            "select": "{label}: pilih salah satu opsi yang tersedia",
+            "json": "{label} harus berupa JSON yang valid",
+            "invalid": "{label} tidak valid",
+            "pattern": "{label} tidak sesuai dengan pola yang diperlukan",
+            "min": "{label} minimal harus {min}",
+            "max": "{label} maksimal harus {max}"
+        }
     }
 }

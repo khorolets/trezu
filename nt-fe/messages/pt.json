@@ -2322,6 +2322,18 @@
             "fileProposal": "Registrar proposta"
         },
         "collapsePinned": "Recolher modelos fixados",
-        "expandPinned": "Expandir modelos fixados"
+        "expandPinned": "Expandir modelos fixados",
+        "validation": {
+            "required": "{label} é obrigatório",
+            "account": "{label} deve ser uma conta NEAR válida",
+            "wholeNumber": "{label} deve ser um número inteiro",
+            "number": "{label} deve ser um número",
+            "select": "{label}: escolha uma opção da lista",
+            "json": "{label} deve ser um JSON válido",
+            "invalid": "{label} é inválido",
+            "pattern": "{label} não corresponde ao padrão exigido",
+            "min": "{label} deve ser no mínimo {min}",
+            "max": "{label} deve ser no máximo {max}"
+        }
     }
 }

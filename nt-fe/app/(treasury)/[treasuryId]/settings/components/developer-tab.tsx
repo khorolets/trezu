@@ -68,9 +68,7 @@ export function DeveloperTab() {
                 }
             },
             onError: (error) =>
-                toast.error(
-                    apiErrorMessage(error, t("developer.errUpdate")),
-                ),
+                toast.error(apiErrorMessage(error, t("developer.errUpdate"))),
         });
     }
 

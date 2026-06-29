@@ -2322,6 +2322,18 @@
             "fileProposal": "File Proposal"
         },
         "collapsePinned": "Collapse pinned templates",
-        "expandPinned": "Expand pinned templates"
+        "expandPinned": "Expand pinned templates",
+        "validation": {
+            "required": "{label} is required",
+            "account": "{label} must be a valid NEAR account",
+            "wholeNumber": "{label} must be a whole number",
+            "number": "{label} must be a number",
+            "select": "{label}: choose a listed option",
+            "json": "{label} must be valid JSON",
+            "invalid": "{label} is invalid",
+            "pattern": "{label} does not match the required pattern",
+            "min": "{label} must be at least {min}",
+            "max": "{label} must be at most {max}"
+        }
     }
 }

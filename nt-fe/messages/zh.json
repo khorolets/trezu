@@ -2322,6 +2322,18 @@
             "fileProposal": "提交提案"
         },
         "collapsePinned": "折叠已固定的模板",
-        "expandPinned": "展开已固定的模板"
+        "expandPinned": "展开已固定的模板",
+        "validation": {
+            "required": "{label}为必填项",
+            "account": "{label}必须是有效的 NEAR 账户",
+            "wholeNumber": "{label}必须是整数",
+            "number": "{label}必须是数字",
+            "select": "{label}：请选择列表中的选项",
+            "json": "{label}必须是有效的 JSON",
+            "invalid": "{label}无效",
+            "pattern": "{label}与要求的格式不匹配",
+            "min": "{label}不得小于 {min}",
+            "max": "{label}不得大于 {max}"
+        }
     }
 }

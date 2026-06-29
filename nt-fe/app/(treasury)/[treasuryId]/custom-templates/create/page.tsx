@@ -1,12 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 /**
  * Author a new proposal template: the shared TemplateEditor (Visual constructor by default, with a
  * Code tab for raw manifest JSON) validates live, then saves via the `ChangePolicy`-gated create
  * endpoint. Lives at the reserved `create` slug.
  */
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PageComponentLayout } from "@/components/page-component-layout";
 import { apiErrorMessage } from "@/features/proposal-templates/api";

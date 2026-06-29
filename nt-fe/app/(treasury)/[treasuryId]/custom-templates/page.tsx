@@ -16,8 +16,8 @@ import {
     Plus,
     Trash2,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/button";
@@ -238,7 +238,8 @@ export default function CustomTemplatesIndexPage() {
                                     variant="secondary"
                                     onClick={() => go("/create")}
                                 >
-                                    <Plus className="size-4" /> {t("index.addNew")}
+                                    <Plus className="size-4" />{" "}
+                                    {t("index.addNew")}
                                 </Button>
                             </div>
                         </div>

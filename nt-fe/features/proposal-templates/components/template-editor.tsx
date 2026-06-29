@@ -221,7 +221,9 @@ export function TemplateEditor({
                     <TabsTrigger value="visual">
                         {t("editor.tabVisual")}
                     </TabsTrigger>
-                    <TabsTrigger value="code">{t("editor.tabCode")}</TabsTrigger>
+                    <TabsTrigger value="code">
+                        {t("editor.tabCode")}
+                    </TabsTrigger>
                 </TabsList>
             </Tabs>
 

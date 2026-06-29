@@ -2322,6 +2322,18 @@
             "fileProposal": "Nộp đề xuất"
         },
         "collapsePinned": "Thu gọn mẫu đã ghim",
-        "expandPinned": "Mở rộng mẫu đã ghim"
+        "expandPinned": "Mở rộng mẫu đã ghim",
+        "validation": {
+            "required": "{label} là bắt buộc",
+            "account": "{label} phải là một tài khoản NEAR hợp lệ",
+            "wholeNumber": "{label} phải là số nguyên",
+            "number": "{label} phải là một số",
+            "select": "{label}: hãy chọn một tùy chọn trong danh sách",
+            "json": "{label} phải là JSON hợp lệ",
+            "invalid": "{label} không hợp lệ",
+            "pattern": "{label} không khớp với định dạng yêu cầu",
+            "min": "{label} phải lớn hơn hoặc bằng {min}",
+            "max": "{label} phải nhỏ hơn hoặc bằng {max}"
+        }
     }
 }

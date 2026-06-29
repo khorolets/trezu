@@ -2322,6 +2322,18 @@
             "fileProposal": "提案を提出"
         },
         "collapsePinned": "固定したテンプレートを折りたたむ",
-        "expandPinned": "固定したテンプレートを展開する"
+        "expandPinned": "固定したテンプレートを展開する",
+        "validation": {
+            "required": "{label}は必須です",
+            "account": "{label}は有効なNEARアカウントである必要があります",
+            "wholeNumber": "{label}は整数である必要があります",
+            "number": "{label}は数値である必要があります",
+            "select": "{label}：一覧から選択してください",
+            "json": "{label}は有効なJSONである必要があります",
+            "invalid": "{label}が無効です",
+            "pattern": "{label}が必要なパターンに一致しません",
+            "min": "{label}は{min}以上である必要があります",
+            "max": "{label}は{max}以下である必要があります"
+        }
     }
 }

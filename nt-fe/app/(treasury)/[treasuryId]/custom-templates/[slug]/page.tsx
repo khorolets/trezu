@@ -7,8 +7,8 @@
  * same gasless-relayer route the core proposals use, so a custom request behaves like a built-in one.
  */
 import { ArrowLeft } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { PageCard } from "@/components/card";
 import { PageComponentLayout } from "@/components/page-component-layout";

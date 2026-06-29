@@ -2322,6 +2322,18 @@
             "fileProposal": "Antrag einreichen"
         },
         "collapsePinned": "Angeheftete Vorlagen einklappen",
-        "expandPinned": "Angeheftete Vorlagen ausklappen"
+        "expandPinned": "Angeheftete Vorlagen ausklappen",
+        "validation": {
+            "required": "{label} ist erforderlich",
+            "account": "{label} muss ein gültiges NEAR-Konto sein",
+            "wholeNumber": "{label} muss eine ganze Zahl sein",
+            "number": "{label} muss eine Zahl sein",
+            "select": "{label}: Bitte eine aufgeführte Option auswählen",
+            "json": "{label} muss gültiges JSON sein",
+            "invalid": "{label} ist ungültig",
+            "pattern": "{label} entspricht nicht dem erforderlichen Muster",
+            "min": "{label} muss mindestens {min} sein",
+            "max": "{label} darf höchstens {max} sein"
+        }
     }
 }

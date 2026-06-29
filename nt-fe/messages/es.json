@@ -2322,6 +2322,18 @@
             "fileProposal": "Presentar propuesta"
         },
         "collapsePinned": "Contraer plantillas fijadas",
-        "expandPinned": "Expandir plantillas fijadas"
+        "expandPinned": "Expandir plantillas fijadas",
+        "validation": {
+            "required": "{label} es obligatorio",
+            "account": "{label} debe ser una cuenta de NEAR válida",
+            "wholeNumber": "{label} debe ser un número entero",
+            "number": "{label} debe ser un número",
+            "select": "{label}: elige una opción de la lista",
+            "json": "{label} debe ser un JSON válido",
+            "invalid": "{label} no es válido",
+            "pattern": "{label} no coincide con el patrón requerido",
+            "min": "{label} debe ser como mínimo {min}",
+            "max": "{label} debe ser como máximo {max}"
+        }
     }
 }

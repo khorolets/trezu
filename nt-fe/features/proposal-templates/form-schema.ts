@@ -69,21 +69,42 @@ function passesType(field: ManifestField, value: string): boolean {
     }
 }
 
-function typeMessage(field: ManifestField): string {
+/**
+ * Member-facing validation messages, injected so they stay localized: next-intl strings live in the
+ * UI layer, while this module stays pure (no React, no next-intl). `label` is the field's authored
+ * label; `min`/`max` the configured bound.
+ */
+export interface ValidationMessages {
+    required: (label: string) => string;
+    account: (label: string) => string;
+    wholeNumber: (label: string) => string;
+    number: (label: string) => string;
+    select: (label: string) => string;
+    json: (label: string) => string;
+    invalid: (label: string) => string;
+    pattern: (label: string) => string;
+    min: (label: string, min: string) => string;
+    max: (label: string, max: string) => string;
+}
+
+function typeMessage(
+    field: ManifestField,
+    messages: ValidationMessages,
+): string {
     switch (field.type) {
         case "account":
-            return `${field.label} must be a valid NEAR account`;
+            return messages.account(field.label);
         case "uint":
         case "amount":
-            return `${field.label} must be a whole number`;
+            return messages.wholeNumber(field.label);
         case "number":
-            return `${field.label} must be a number`;
+            return messages.number(field.label);
         case "select":
-            return `${field.label}: choose a listed option`;
+            return messages.select(field.label);
         case "json":
-            return `${field.label} must be valid JSON`;
+            return messages.json(field.label);
         default:
-            return `${field.label} is invalid`;
+            return messages.invalid(field.label);
     }
 }
 
@@ -97,7 +118,10 @@ function meetsBound(value: string, bound: string, atLeast: boolean): boolean {
     }
 }
 
-function fieldValueSchema(field: ManifestField): z.ZodTypeAny {
+function fieldValueSchema(
+    field: ManifestField,
+    messages: ValidationMessages,
+): z.ZodTypeAny {
     if (field.type === "bool") {
         return z.boolean();
     }
@@ -106,12 +130,12 @@ function fieldValueSchema(field: ManifestField): z.ZodTypeAny {
     let schema: z.ZodTypeAny = z
         .string()
         .refine((value) => value !== "" || !required, {
-            message: `${field.label} is required`,
+            message: messages.required(field.label),
         })
         .refine(
             allowEmpty((value) => passesType(field, value)),
             {
-                message: typeMessage(field),
+                message: typeMessage(field, messages),
             },
         );
 
@@ -125,7 +149,7 @@ function fieldValueSchema(field: ManifestField): z.ZodTypeAny {
                     value.length <= MAX_PATTERN_INPUT && pattern.test(value),
             ),
             {
-                message: `${field.label} does not match the required pattern`,
+                message: messages.pattern(field.label),
             },
         );
     }
@@ -134,7 +158,7 @@ function fieldValueSchema(field: ManifestField): z.ZodTypeAny {
     if (min !== undefined) {
         schema = schema.refine(
             allowEmpty((value) => meetsBound(value, min, true)),
-            { message: `${field.label} must be at least ${min}` },
+            { message: messages.min(field.label, min) },
         );
     }
 
@@ -142,7 +166,7 @@ function fieldValueSchema(field: ManifestField): z.ZodTypeAny {
     if (max !== undefined) {
         schema = schema.refine(
             allowEmpty((value) => meetsBound(value, max, false)),
-            { message: `${field.label} must be at most ${max}` },
+            { message: messages.max(field.label, max) },
         );
     }
 
@@ -150,10 +174,13 @@ function fieldValueSchema(field: ManifestField): z.ZodTypeAny {
 }
 
 /** Build the react-hook-form zod schema that validates a manifest's filled values. */
-export function buildFormSchema(manifest: Manifest) {
+export function buildFormSchema(
+    manifest: Manifest,
+    messages: ValidationMessages,
+) {
     const shape: Record<string, z.ZodTypeAny> = {};
     for (const field of manifest.fields) {
-        shape[field.name] = fieldValueSchema(field);
+        shape[field.name] = fieldValueSchema(field, messages);
     }
     return z.object(shape);
 }

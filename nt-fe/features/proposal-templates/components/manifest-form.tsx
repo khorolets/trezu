@@ -14,7 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type ControllerRenderProps, useForm } from "react-hook-form";
 import { Button } from "@/components/button";
 import { InputBlock } from "@/components/input-block";
@@ -142,8 +142,27 @@ export function ManifestForm({
     submitLabel,
 }: ManifestFormProps) {
     const t = useTranslations("customTemplates");
+    const tv = useTranslations("customTemplates.validation");
+    // Member-facing validation errors stay localized: resolve each message (with the field's label,
+    // and the bound for min/max) and hand them to the pure schema builder.
+    const schema = useMemo(
+        () =>
+            buildFormSchema(manifest, {
+                required: (label) => tv("required", { label }),
+                account: (label) => tv("account", { label }),
+                wholeNumber: (label) => tv("wholeNumber", { label }),
+                number: (label) => tv("number", { label }),
+                select: (label) => tv("select", { label }),
+                json: (label) => tv("json", { label }),
+                invalid: (label) => tv("invalid", { label }),
+                pattern: (label) => tv("pattern", { label }),
+                min: (label, min) => tv("min", { label, min }),
+                max: (label, max) => tv("max", { label, max }),
+            }),
+        [manifest, tv],
+    );
     const form = useForm<FieldValues>({
-        resolver: zodResolver(buildFormSchema(manifest)),
+        resolver: zodResolver(schema),
         defaultValues: defaultValuesFor(manifest),
         mode: "onBlur",
     });

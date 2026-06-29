@@ -2322,6 +2322,18 @@
             "fileProposal": "Teklif Oluştur"
         },
         "collapsePinned": "Sabitlenmiş şablonları daralt",
-        "expandPinned": "Sabitlenmiş şablonları genişlet"
+        "expandPinned": "Sabitlenmiş şablonları genişlet",
+        "validation": {
+            "required": "{label} alanı zorunludur",
+            "account": "{label} geçerli bir NEAR hesabı olmalıdır",
+            "wholeNumber": "{label} bir tam sayı olmalıdır",
+            "number": "{label} bir sayı olmalıdır",
+            "select": "{label} için listelenen seçeneklerden birini seçin",
+            "json": "{label} geçerli bir JSON olmalıdır",
+            "invalid": "{label} geçersiz",
+            "pattern": "{label} gerekli desenle eşleşmiyor",
+            "min": "{label} en az {min} olmalıdır",
+            "max": "{label} en fazla {max} olmalıdır"
+        }
     }
 }

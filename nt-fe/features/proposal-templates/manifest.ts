@@ -252,22 +252,21 @@ export const manifestBindingSchema = z.object({
 export type ManifestBinding = z.infer<typeof manifestBindingSchema>;
 
 /**
- * The shape of one `{{name}}` placeholder, kept as a source string so extraction and substitution
- * build their regexes from a single definition (a charset tweak can't leave one behind). The
- * look-arounds skip escaped `{{{{literal}}}}` sequences so a literal `{{` is never mistaken for a
- * placeholder; capture group 1 is the field name.
+ * One matcher for both extraction and substitution, kept as a single source so a charset tweak can't
+ * leave one behind. It deliberately avoids a RegExp lookbehind: some runtimes (notably Safari < 16.4)
+ * throw a SyntaxError on lookbehind at module-load, which would break every flow that imports this
+ * module — not just template authoring. Instead the escaped `{{{{literal}}}}` block is matched first
+ * and as a whole, so its inner `{{...}}` is consumed and never seen as a placeholder. Group 1 is the
+ * escaped inner (rendered back as a literal `{{...}}`); group 2 is a real placeholder's field name.
  */
-const PLACEHOLDER_PATTERN =
-    "(?<!\\{)\\{\\{\\s*([a-zA-Z0-9_]+)\\s*\\}\\}(?!\\})";
+const PLACEHOLDER_SOURCE =
+    "\\{\\{\\{\\{([\\s\\S]*?)\\}\\}\\}\\}|\\{\\{\\s*([a-zA-Z0-9_]+)\\s*\\}\\}";
 
-/** Extraction: matches every placeholder (group 1 = name). */
-const PLACEHOLDER_RE = new RegExp(PLACEHOLDER_PATTERN, "g");
+/** Extraction: group 2 = name; an escaped block matches group 1 and carries no name (skipped). */
+const PLACEHOLDER_RE = new RegExp(PLACEHOLDER_SOURCE, "g");
 
-/** Substitution: an escaped `{{{{...}}}}` (group 1) OR a placeholder (group 2 = name). */
-const SUBSTITUTE_RE = new RegExp(
-    `\\{\\{\\{\\{([\\s\\S]*?)\\}\\}\\}\\}|${PLACEHOLDER_PATTERN}`,
-    "g",
-);
+/** Substitution: group 1 = escaped inner, group 2 = placeholder name. */
+const SUBSTITUTE_RE = new RegExp(PLACEHOLDER_SOURCE, "g");
 
 function collectStrings(value: unknown, out: string[]): void {
     if (typeof value === "string") {
@@ -294,7 +293,7 @@ export function manifestPlaceholders(value: unknown): Set<string> {
     const names = new Set<string>();
     for (const text of strings) {
         for (const match of text.matchAll(PLACEHOLDER_RE)) {
-            const name = match[1];
+            const name = match[2];
             if (name) {
                 names.add(name);
             }

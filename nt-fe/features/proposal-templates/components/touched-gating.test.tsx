@@ -5,14 +5,26 @@
  * The interactive half (error appears *after* blur) belongs in the Playwright e2e.
  */
 import { describe, expect, it } from "bun:test";
+import { NextIntlClientProvider } from "next-intl";
 import { renderToStaticMarkup } from "react-dom/server";
+import messages from "@/messages/en.json";
 import { emptyDraft } from "../draft";
 import { LabeledInput } from "./fields-builder";
 import { VisualBuilder } from "./visual-builder";
 
+// The authoring components localize via next-intl, so static rendering needs an intl context (mirrors
+// the real (treasury) layout's provider). Real en messages keep the rendered labels honest.
+function renderWithIntl(node: React.ReactNode): string {
+    return renderToStaticMarkup(
+        <NextIntlClientProvider locale="en" messages={messages}>
+            {node}
+        </NextIntlClientProvider>,
+    );
+}
+
 describe("LabeledInput touched gating", () => {
     it("does not render its error before the input is touched", () => {
-        const html = renderToStaticMarkup(
+        const html = renderWithIntl(
             <LabeledInput
                 label="Receiver"
                 value=""
@@ -30,7 +42,7 @@ describe("VisualBuilder section-error gating", () => {
         'args: duplicate argument key "x" — only the last is kept';
 
     function render(showSectionErrors: boolean): string {
-        return renderToStaticMarkup(
+        return renderWithIntl(
             <VisualBuilder
                 draft={emptyDraft()}
                 errors={[sectionError]}

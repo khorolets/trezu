@@ -3,6 +3,7 @@ import { base64ToJson } from "@/lib/utils";
 import { buildTemplateProposal, interpolateArgs } from "./build-proposal";
 import {
     type Manifest,
+    type ManifestFieldType,
     manifestErrorMessages,
     parseManifest,
 } from "./manifest";
@@ -47,6 +48,43 @@ const guestbookValues = {
     tip: "5",
 };
 
+// A call whose args mix every typed-injection case: a lone bool/number/json reaches the contract
+// typed, while a u128 `uint` and any composed value stay strings.
+const rawTyped = {
+    version: 1,
+    id: "typed-args",
+    title: "Typed Args",
+    binding: {
+        receiver_id: "config.near",
+        method_name: "configure",
+        deposit: "0",
+        gas: "30000000000000",
+    },
+    fields: [
+        { name: "enabled", label: "Enabled", type: "bool" },
+        { name: "count", label: "Count", type: "number" },
+        { name: "config", label: "Config", type: "json" },
+        { name: "amount", label: "Amount", type: "uint" },
+        { name: "note", label: "Note", type: "text" },
+    ],
+    args: {
+        enabled: "{{enabled}}", // lone bool -> boolean
+        count: "{{count}}", // lone number -> number
+        config: "{{config}}", // lone json -> parsed value
+        amount: "{{amount}}", // lone uint -> string (u128 safety)
+        note: "{{note}}", // lone text -> string
+        label: "n={{count}}", // composed -> string
+    },
+};
+
+const typedValues = {
+    enabled: true,
+    count: "5",
+    config: '{"k":1}',
+    amount: "1000",
+    note: "hi",
+};
+
 describe("interpolateArgs", () => {
     it("substitutes placeholders in nested strings, arrays, and objects", () => {
         const out = interpolateArgs(
@@ -74,6 +112,11 @@ describe("interpolateArgs", () => {
         expect(interpolateArgs("{{{{keep}}}} {{x}}", { x: "X" })).toBe(
             "{{keep}} X",
         );
+    });
+
+    it("does not type-resolve an escaped {{{{name}}}} (stays a string)", () => {
+        const types = new Map<string, ManifestFieldType>([["b", "bool"]]);
+        expect(interpolateArgs("{{{{b}}}}", { b: true }, types)).toBe("{{b}}");
     });
 
     it("returns an empty args object unchanged", () => {
@@ -134,5 +177,17 @@ describe("buildTemplateProposal", () => {
             guestbookValues,
         );
         expect(description).toContain("Guestbook Tip");
+    });
+
+    it("emits a lone bool/number/json typed, but keeps uint and composed strings", () => {
+        const { kind } = buildTemplateProposal(manifest(rawTyped), typedValues);
+        expect(base64ToJson(kind.FunctionCall.actions[0].args)).toEqual({
+            enabled: true, // boolean, not "true"
+            count: 5, // number, not "5"
+            config: { k: 1 }, // parsed JSON, not the string
+            amount: "1000", // u128 stays a digit string
+            note: "hi",
+            label: "n=5", // composed stays a string
+        });
     });
 });

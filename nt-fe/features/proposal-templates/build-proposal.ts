@@ -5,16 +5,24 @@
  *
  * Pure and framework-free, so it unit-tests without React or a wallet, and it reuses the manifest
  * module's `substitutePlaceholders` so the args it emits can never drift from what the validator
- * checked. Two distinct rules govern the `args` tree: (1) placeholder substitution happens only
- * inside string values — a `{{field}}` is replaced in-place and its value is always stringified
- * (NEAR amounts stay digit strings, so u128 values never round-trip through a JS number); (2) any
- * static non-string node in the template — a number, boolean, or nested object/array literal —
- * passes through verbatim, keeping its JSON type. So a manifest can emit typed JSON args; what's
- * string-only is the substitution of placeholders, not the args themselves.
+ * checked. Two distinct rules govern the `args` tree:
+ *   (1) A value that is exactly one placeholder — `"{{field}}"` and nothing else — resolves to that
+ *       field's *typed* JSON: a `bool` field yields a real boolean, `number` a real number, and
+ *       `json` the parsed value, so a contract's serde accepts them. Every other type (notably the
+ *       u128 `uint`/`amount`, which must stay digit strings) and any *composed* string
+ *       (`"{{a}}/{{b}}"`, or a field embedded in a JSON string) stays a string.
+ *   (2) Any static non-string node in the template — a number, boolean, or nested object/array
+ *       literal — passes through verbatim, keeping its JSON type.
+ * So a member-filled `bool`/`number`/`json` lands typed; everything else, and all composition, is
+ * string — and amounts never round-trip through a JS number.
  */
 import type { FunctionCallKind } from "@/lib/proposals-api";
 import { encodeToMarkdown, jsonToBase64 } from "@/lib/utils";
-import { type Manifest, substitutePlaceholders } from "./manifest";
+import {
+    type Manifest,
+    type ManifestFieldType,
+    substitutePlaceholders,
+} from "./manifest";
 
 /** Values a member filled, keyed by field `name`. */
 export type FieldValues = Record<string, unknown>;
@@ -45,21 +53,84 @@ function interpolateString(text: string, values: FieldValues): string {
     return substitutePlaceholders(text, (name) => resolveValue(values[name]));
 }
 
-/** Recursively interpolate `{{field}}` placeholders through an args template using `values`. */
+// A value that is exactly one placeholder — `{{name}}` and nothing else. The `{{{{x}}}}` escape
+// (four braces) can't match (its inner `{` isn't a name char), so an escaped literal never triggers
+// typed resolution; only a genuine lone reference does.
+const LONE_PLACEHOLDER_RE = /^\{\{([a-zA-Z0-9_]+)\}\}$/;
+
+/**
+ * If `text` is a lone `{{field}}` for a `bool`/`number`/`json` field, return its typed JSON value
+ * (boxed, since the value itself may legitimately be `false`/`0`/`null`). Returns `null` to defer to
+ * the normal string path — for every other type, for composed strings, and when a `number`/`json`
+ * value is empty or unparseable (don't coerce `""` → `0` or crash on bad JSON).
+ */
+function typedLoneValue(
+    text: string,
+    values: FieldValues,
+    fieldTypes: Map<string, ManifestFieldType>,
+): { value: unknown } | null {
+    const match = LONE_PLACEHOLDER_RE.exec(text);
+    if (!match) {
+        return null;
+    }
+    const raw = values[match[1]];
+    switch (fieldTypes.get(match[1])) {
+        case "bool":
+            return { value: typeof raw === "boolean" ? raw : raw === "true" };
+        case "number":
+            if (typeof raw === "number") {
+                return { value: raw };
+            }
+            if (
+                typeof raw === "string" &&
+                raw.trim() !== "" &&
+                Number.isFinite(Number(raw))
+            ) {
+                return { value: Number(raw) };
+            }
+            return null;
+        case "json":
+            if (typeof raw === "string" && raw.trim() !== "") {
+                try {
+                    return { value: JSON.parse(raw) };
+                } catch {
+                    return null;
+                }
+            }
+            return null;
+        default:
+            return null;
+    }
+}
+
+/**
+ * Recursively interpolate `{{field}}` placeholders through an args template using `values`. With
+ * `fieldTypes`, a lone `{{field}}` for a `bool`/`number`/`json` field resolves to its typed JSON
+ * (see `typedLoneValue`); without it, every placeholder is stringified (used for the summary line).
+ */
 export function interpolateArgs(
     template: unknown,
     values: FieldValues,
+    fieldTypes?: Map<string, ManifestFieldType>,
 ): unknown {
     if (typeof template === "string") {
+        if (fieldTypes) {
+            const typed = typedLoneValue(template, values, fieldTypes);
+            if (typed) {
+                return typed.value;
+            }
+        }
         return interpolateString(template, values);
     }
     if (Array.isArray(template)) {
-        return template.map((item) => interpolateArgs(item, values));
+        return template.map((item) =>
+            interpolateArgs(item, values, fieldTypes),
+        );
     }
     if (template !== null && typeof template === "object") {
         const out: Record<string, unknown> = {};
         for (const [key, item] of Object.entries(template)) {
-            out[key] = interpolateArgs(item, values);
+            out[key] = interpolateArgs(item, values, fieldTypes);
         }
         return out;
     }
@@ -77,7 +148,10 @@ export function buildTemplateProposal(
     manifest: Manifest,
     values: FieldValues,
 ): TemplateProposal {
-    const args = interpolateArgs(manifest.args, values);
+    const fieldTypes = new Map(
+        manifest.fields.map((field) => [field.name, field.type]),
+    );
+    const args = interpolateArgs(manifest.args, values, fieldTypes);
     const kind: FunctionCallKind = {
         FunctionCall: {
             receiver_id: manifest.binding.receiver_id,

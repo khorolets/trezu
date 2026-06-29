@@ -2322,6 +2322,18 @@
             "fileProposal": "הגש הצעה"
         },
         "collapsePinned": "כווץ תבניות מוצמדות",
-        "expandPinned": "הרחב תבניות מוצמדות"
+        "expandPinned": "הרחב תבניות מוצמדות",
+        "validation": {
+            "required": "חובה למלא את השדה {label}",
+            "account": "{label} חייב להיות חשבון NEAR תקין",
+            "wholeNumber": "{label} חייב להיות מספר שלם",
+            "number": "{label} חייב להיות מספר",
+            "select": "{label}: יש לבחור אחת מהאפשרויות ברשימה",
+            "json": "{label} חייב להיות JSON תקין",
+            "invalid": "{label} אינו תקין",
+            "pattern": "{label} אינו תואם לתבנית הנדרשת",
+            "min": "{label} חייב להיות לפחות {min}",
+            "max": "{label} חייב להיות לכל היותר {max}"
+        }
     }
 }

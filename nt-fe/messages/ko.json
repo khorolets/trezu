@@ -2322,6 +2322,18 @@
             "fileProposal": "제안 제출"
         },
         "collapsePinned": "고정한 템플릿 접기",
-        "expandPinned": "고정한 템플릿 펼치기"
+        "expandPinned": "고정한 템플릿 펼치기",
+        "validation": {
+            "required": "{label}은(는) 필수 항목입니다",
+            "account": "{label}은(는) 유효한 NEAR 계정이어야 합니다",
+            "wholeNumber": "{label}은(는) 정수여야 합니다",
+            "number": "{label}은(는) 숫자여야 합니다",
+            "select": "{label}: 목록에 있는 옵션을 선택하세요",
+            "json": "{label}은(는) 유효한 JSON이어야 합니다",
+            "invalid": "{label}이(가) 올바르지 않습니다",
+            "pattern": "{label}이(가) 요구되는 형식과 일치하지 않습니다",
+            "min": "{label}은(는) 최소 {min} 이상이어야 합니다",
+            "max": "{label}은(는) 최대 {max} 이하여야 합니다"
+        }
     }
 }

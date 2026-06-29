@@ -2322,6 +2322,18 @@
             "fileProposal": "Подати пропозицію"
         },
         "collapsePinned": "Згорнути закріплені шаблони",
-        "expandPinned": "Розгорнути закріплені шаблони"
+        "expandPinned": "Розгорнути закріплені шаблони",
+        "validation": {
+            "required": "Поле {label} обовʼязкове",
+            "account": "{label} має бути дійсним акаунтом NEAR",
+            "wholeNumber": "{label} має бути цілим числом",
+            "number": "{label} має бути числом",
+            "select": "{label}: оберіть один зі списку",
+            "json": "{label} має бути коректним JSON",
+            "invalid": "{label} має некоректне значення",
+            "pattern": "{label} не відповідає потрібному формату",
+            "min": "{label} має бути не менше {min}",
+            "max": "{label} має бути не більше {max}"
+        }
     }
 }

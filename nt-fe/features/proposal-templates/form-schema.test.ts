@@ -1,10 +1,28 @@
 import { describe, expect, it } from "bun:test";
-import { buildFormSchema, defaultValuesFor } from "./form-schema";
+import {
+    buildFormSchema,
+    defaultValuesFor,
+    type ValidationMessages,
+} from "./form-schema";
 import {
     type Manifest,
     manifestErrorMessages,
     parseManifest,
 } from "./manifest";
+
+// These tests assert validation behaviour, not message text — a plain English stub is enough.
+const messages: ValidationMessages = {
+    required: (l) => `${l} is required`,
+    account: (l) => `${l} must be a valid NEAR account`,
+    wholeNumber: (l) => `${l} must be a whole number`,
+    number: (l) => `${l} must be a number`,
+    select: (l) => `${l}: choose a listed option`,
+    json: (l) => `${l} must be valid JSON`,
+    invalid: (l) => `${l} is invalid`,
+    pattern: (l) => `${l} does not match the required pattern`,
+    min: (l, min) => `${l} must be at least ${min}`,
+    max: (l, max) => `${l} must be at most ${max}`,
+};
 
 function manifest(raw: unknown): Manifest {
     const result = parseManifest(raw);
@@ -32,7 +50,7 @@ function withFields(fields: unknown[]): Manifest {
 }
 
 function schemaFor(field: unknown) {
-    return buildFormSchema(withFields([field]));
+    return buildFormSchema(withFields([field]), messages);
 }
 
 describe("buildFormSchema", () => {
