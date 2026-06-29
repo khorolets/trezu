@@ -7,6 +7,7 @@
  * `args` placeholder issues — show at their section's foot. `icon` isn't surfaced but rides along
  * in the draft, so round-tripping never drops it.
  */
+import { useTranslations } from "next-intl";
 import { dynamicArgNames } from "../args-node";
 import { type ManifestDraft, usedFieldNames } from "../draft";
 import { errorFor, isInlineErrorPath } from "../error-map";
@@ -93,6 +94,7 @@ export function VisualBuilder({
     showSectionErrors,
     onChange,
 }: VisualBuilderProps) {
+    const t = useTranslations("customTemplates");
     const update = (patch: Partial<ManifestDraft>) =>
         onChange({ ...draft, ...patch });
     const updateBinding = (patch: Partial<ManifestDraft["binding"]>) =>
@@ -102,17 +104,17 @@ export function VisualBuilder({
 
     return (
         <div className="flex flex-col gap-4">
-            <Section title="Details">
+            <Section title={t("visual.detailsTitle")}>
                 <div className="grid gap-3 sm:grid-cols-2">
                     <LabeledInput
-                        label="ID (slug)"
+                        label={t("visual.idLabel")}
                         value={draft.id}
                         onChange={(value) => update({ id: value })}
                         placeholder="set-greeting"
                         error={errorFor(errors, "id")}
                     />
                     <LabeledInput
-                        label="Title"
+                        label={t("visual.titleLabel")}
                         value={draft.title}
                         onChange={(value) => update({ title: value })}
                         placeholder="Set Greeting"
@@ -120,13 +122,13 @@ export function VisualBuilder({
                     />
                 </div>
                 <LabeledInput
-                    label="Description (optional)"
+                    label={t("visual.descriptionLabel")}
                     value={draft.description}
                     onChange={(value) => update({ description: value })}
                     error={errorFor(errors, "description")}
                 />
                 <LabeledInput
-                    label="Summary (optional, supports {{fields}})"
+                    label={t("visual.summaryLabel")}
                     value={draft.summary}
                     onChange={(value) => update({ summary: value })}
                     placeholder="Set greeting to {{greeting}}"
@@ -135,12 +137,12 @@ export function VisualBuilder({
             </Section>
 
             <Section
-                title="On-chain call"
-                description="The fixed FunctionCall this template files."
+                title={t("visual.onChainCallTitle")}
+                description={t("visual.onChainCallDescription")}
             >
                 <div className="grid gap-3 sm:grid-cols-2">
                     <LabeledInput
-                        label="Receiver (contract)"
+                        label={t("visual.receiverLabel")}
                         value={draft.binding.receiver_id}
                         onChange={(value) =>
                             updateBinding({ receiver_id: value })
@@ -149,7 +151,7 @@ export function VisualBuilder({
                         error={errorFor(errors, "binding.receiver_id")}
                     />
                     <LabeledInput
-                        label="Method"
+                        label={t("visual.methodLabel")}
                         value={draft.binding.method_name}
                         onChange={(value) =>
                             updateBinding({ method_name: value })
@@ -158,14 +160,14 @@ export function VisualBuilder({
                         error={errorFor(errors, "binding.method_name")}
                     />
                     <LabeledInput
-                        label="Deposit (yoctoNEAR)"
+                        label={t("visual.depositLabel")}
                         value={draft.binding.deposit}
                         onChange={(value) => updateBinding({ deposit: value })}
                         placeholder="0"
                         error={errorFor(errors, "binding.deposit")}
                     />
                     <LabeledInput
-                        label="Gas"
+                        label={t("visual.gasLabel")}
                         value={draft.binding.gas}
                         onChange={(value) => updateBinding({ gas: value })}
                         placeholder="30000000000000"
@@ -175,8 +177,8 @@ export function VisualBuilder({
             </Section>
 
             <Section
-                title="Arguments"
-                description="The arguments sent to the contract. Each is Static (a fixed value) or a Member input (dynamic) — for the latter, the input's config appears inline."
+                title={t("visual.argumentsTitle")}
+                description={t("visual.argumentsDescription")}
             >
                 <ArgsTreeEditor
                     args={draft.args}
@@ -193,8 +195,8 @@ export function VisualBuilder({
             </Section>
 
             <Section
-                title="Other inputs"
-                description="Inputs used only inside a composed value (not a direct member-input argument), plus any you add manually. Most templates have none."
+                title={t("visual.otherInputsTitle")}
+                description={t("visual.otherInputsDescription")}
             >
                 <FieldsBuilder
                     fields={draft.fields}

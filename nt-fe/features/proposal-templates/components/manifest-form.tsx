@@ -13,6 +13,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { type ControllerRenderProps, useForm } from "react-hook-form";
 import { Button } from "@/components/button";
@@ -65,6 +66,7 @@ function FieldControlInput({
     field: ManifestField;
     control: FieldControl;
 }) {
+    const t = useTranslations("customTemplates");
     switch (field.type) {
         case "bool":
             return (
@@ -86,7 +88,9 @@ function FieldControlInput({
                         className={SELECT_TRIGGER_CLASS}
                         onBlur={control.onBlur}
                     >
-                        <SelectValue placeholder="Choose an option" />
+                        <SelectValue
+                            placeholder={t("form.selectPlaceholder")}
+                        />
                     </SelectTrigger>
                     <SelectContent>
                         {(field.options ?? []).map((option) => (
@@ -137,6 +141,7 @@ export function ManifestForm({
     submitting,
     submitLabel,
 }: ManifestFormProps) {
+    const t = useTranslations("customTemplates");
     const form = useForm<FieldValues>({
         resolver: zodResolver(buildFormSchema(manifest)),
         defaultValues: defaultValuesFor(manifest),
@@ -158,7 +163,7 @@ export function ManifestForm({
         setFormKey((key) => key + 1);
     };
 
-    const label = submitLabel ?? "File Proposal";
+    const label = submitLabel ?? t("form.fileProposal");
 
     return (
         <Form {...form}>

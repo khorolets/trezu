@@ -9,6 +9,7 @@
  * inside them is a composed `{{placeholder}}` configured under "Other inputs".
  */
 import { Plus, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Fragment } from "react";
 import { Button } from "@/components/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,7 @@ export function ArgsTreeEditor({
     errors,
     onChange,
 }: ArgsTreeEditorProps) {
+    const t = useTranslations("customTemplates");
     return (
         <div className="flex flex-col gap-4">
             {args.map((entry, index) => (
@@ -91,7 +93,7 @@ export function ArgsTreeEditor({
                     onChange({ args: [...args, makeArgEntry()], fields })
                 }
             >
-                <Plus className="size-4" /> Add Argument
+                <Plus className="size-4" /> {t("args.addArgument")}
             </Button>
         </div>
     );
@@ -114,6 +116,7 @@ function TopEntryRow({
     errors,
     onChange,
 }: TopEntryRowProps) {
+    const t = useTranslations("customTemplates");
     const entry = args[index];
     const dynamic = isDynamicArg(entry);
     const fieldIndex = fields.findIndex((field) => field.name === entry.key);
@@ -197,7 +200,9 @@ function TopEntryRow({
     return (
         <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-sm">Argument {index + 1}</h4>
+                <h4 className="font-semibold text-sm">
+                    {t("args.argumentHeading", { number: index + 1 })}
+                </h4>
                 <Button
                     type="button"
                     variant="ghost"
@@ -205,19 +210,19 @@ function TopEntryRow({
                     className="text-muted-foreground hover:text-foreground"
                     onClick={removeEntry}
                 >
-                    <Trash2 className="size-4" /> Remove
+                    <Trash2 className="size-4" /> {t("args.remove")}
                 </Button>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
                 <LabeledInput
-                    label="Argument name"
+                    label={t("args.argumentNameLabel")}
                     value={entry.key}
                     onChange={setKey}
-                    placeholder="argument"
+                    placeholder={t("args.argumentNamePlaceholder")}
                     error={keyError}
                 />
-                <Labeled label="Type">
+                <Labeled label={t("args.typeLabel")}>
                     <Select
                         value={dynamic ? "dynamic" : "static"}
                         onValueChange={(value) =>
@@ -228,12 +233,14 @@ function TopEntryRow({
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="static">Static</SelectItem>
+                            <SelectItem value="static">
+                                {t("args.modeStatic")}
+                            </SelectItem>
                             <SelectItem
                                 value="dynamic"
                                 disabled={entry.key === ""}
                             >
-                                Member input
+                                {t("args.modeMemberInput")}
                             </SelectItem>
                         </SelectContent>
                     </Select>
@@ -251,7 +258,7 @@ function TopEntryRow({
 
             {!dynamic ? (
                 <div className="grid gap-3 sm:grid-cols-2">
-                    <Labeled label="Value type">
+                    <Labeled label={t("args.valueTypeLabel")}>
                         <Select
                             value={staticTypeOf(entry.value)}
                             onValueChange={(value) =>
@@ -274,7 +281,7 @@ function TopEntryRow({
                         </Select>
                     </Labeled>
                     <Labeled
-                        label="Value"
+                        label={t("args.valueLabel")}
                         action={
                             staticStringValue !== null &&
                             fieldNames.length > 0 ? (
@@ -369,6 +376,7 @@ function StaticLeaf({
     fieldNames: string[];
     onChange: (node: ArgNode) => void;
 }) {
+    const t = useTranslations("customTemplates");
     if (node.kind === "string") {
         return (
             <div className="flex flex-1 items-center gap-2">
@@ -378,7 +386,7 @@ function StaticLeaf({
                     onChange={(event) =>
                         onChange({ kind: "string", value: event.target.value })
                     }
-                    placeholder="text or {{field}}"
+                    placeholder={t("args.stringValuePlaceholder")}
                 />
                 {fieldNames.length > 0 ? (
                     <FieldInserter
@@ -431,10 +439,11 @@ function FieldInserter({
     fieldNames: string[];
     onInsert: (name: string) => void;
 }) {
+    const t = useTranslations("customTemplates");
     return (
         <Select value="" onValueChange={onInsert}>
             <SelectTrigger className="h-auto w-auto gap-1 border-0 bg-transparent p-0 text-muted-foreground text-xs shadow-none hover:text-foreground focus:ring-0 focus-visible:ring-0">
-                + field
+                {t("args.insertField")}
             </SelectTrigger>
             <SelectContent>
                 {fieldNames.map((name) => (
@@ -457,6 +466,7 @@ function StaticEntriesEditor({
     fieldNames: string[];
     onChange: (entries: ArgEntry[]) => void;
 }) {
+    const t = useTranslations("customTemplates");
     return (
         <div className="flex flex-col gap-2 border-l pl-3">
             {entries.map((entry, index) => (
@@ -477,7 +487,7 @@ function StaticEntriesEditor({
                                     ),
                                 )
                             }
-                            placeholder="key"
+                            placeholder={t("args.keyPlaceholder")}
                         />
                         <StaticValue
                             type={staticTypeOf(entry.value)}
@@ -572,7 +582,7 @@ function StaticEntriesEditor({
                 className="self-start"
                 onClick={() => onChange([...entries, makeArgEntry()])}
             >
-                <Plus className="size-4" /> Add Key
+                <Plus className="size-4" /> {t("args.addKey")}
             </Button>
         </div>
     );
@@ -588,6 +598,7 @@ function StaticItemsEditor({
     fieldNames: string[];
     onChange: (items: ArgItem[]) => void;
 }) {
+    const t = useTranslations("customTemplates");
     function addItem() {
         const last = items.at(-1)?.value;
         const seed = last
@@ -655,7 +666,7 @@ function StaticItemsEditor({
                 className="self-start"
                 onClick={addItem}
             >
-                <Plus className="size-4" /> Add Item
+                <Plus className="size-4" /> {t("args.addItem")}
             </Button>
         </div>
     );

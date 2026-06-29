@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useNextStep } from "nextstepjs";
@@ -52,6 +53,8 @@ interface NavLinkProps {
     badgeCount?: number;
     endAdornment?: React.ReactNode;
     onClick: () => void;
+    /** When set, the link renders as a real `<a>` (Next `Link`) so middle-click / open-in-new-tab / prefetch work. */
+    href?: string;
     id?: string;
     showLabels?: boolean;
 }
@@ -65,9 +68,24 @@ function NavLink({
     badgeCount = 0,
     endAdornment,
     onClick,
+    href,
     id,
     showLabels = true,
 }: NavLinkProps) {
+    const content = (
+        <div className="flex w-full min-w-0 items-center gap-2">
+            <div className="flex min-w-0 items-center gap-3">
+                <Icon className="size-5 shrink-0" />
+                {showLabels && <span className="truncate">{label}</span>}
+            </div>
+            {showLabels && (showBadge || endAdornment) && (
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                    {showBadge && <NumberBadge number={badgeCount} />}
+                    {endAdornment}
+                </div>
+            )}
+        </div>
+    );
     return (
         <AnimateIcon animateOnHover="default" asChild>
             <Button
@@ -78,6 +96,7 @@ function NavLink({
                 }
                 side="right"
                 onClick={onClick}
+                asChild={!!href}
                 className={cn(
                     "flex relative items-center group justify-between gap-3 text-sm font-medium transition-colors",
                     showLabels ? "px-3 py-[5.5px]" : "px-3 justify-center",
@@ -86,20 +105,7 @@ function NavLink({
                         : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
             >
-                <div className="flex w-full min-w-0 items-center gap-2">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <Icon className="size-5 shrink-0" />
-                        {showLabels && (
-                            <span className="truncate">{label}</span>
-                        )}
-                    </div>
-                    {showLabels && (showBadge || endAdornment) && (
-                        <div className="ml-auto flex shrink-0 items-center gap-2">
-                            {showBadge && <NumberBadge number={badgeCount} />}
-                            {endAdornment}
-                        </div>
-                    )}
-                </div>
+                {href ? <Link href={href}>{content}</Link> : content}
             </Button>
         </AnimateIcon>
     );
@@ -186,6 +192,7 @@ export function Sidebar({ onClose }: SidebarProps) {
     const tNav = useTranslations("nav");
     const tPages = useTranslations("pages");
     const tCommon = useTranslations("common");
+    const tCustom = useTranslations("customTemplates");
     const { currentTour } = useNextStep();
 
     const {
@@ -382,20 +389,15 @@ export function Sidebar({ onClose }: SidebarProps) {
                                     <Button
                                         id="request-templates-nav"
                                         variant="link"
+                                        asChild
                                         // Collapsed sidebar is icon-only, so restore the hover label
                                         // there (and keep the tour selector id on this element).
                                         tooltipContent={
                                             showLabels
                                                 ? undefined
-                                                : "Request Templates"
+                                                : tCustom("pageTitle")
                                         }
                                         side="right"
-                                        onClick={() => {
-                                            router.push(
-                                                `/${treasuryId}/custom-templates`,
-                                            );
-                                            if (isMobile) onClose();
-                                        }}
                                         className={cn(
                                             // `justify-start` overrides the Button's base
                                             // `justify-center`, which would otherwise centre the icon
@@ -406,12 +408,19 @@ export function Sidebar({ onClose }: SidebarProps) {
                                                 : "justify-center px-3",
                                         )}
                                     >
-                                        <CodeXml className="size-5 shrink-0" />
-                                        {showLabels && (
-                                            <span className="truncate">
-                                                Request Templates
-                                            </span>
-                                        )}
+                                        <Link
+                                            href={`/${treasuryId}/custom-templates`}
+                                            onClick={() => {
+                                                if (isMobile) onClose();
+                                            }}
+                                        >
+                                            <CodeXml className="size-5 shrink-0" />
+                                            {showLabels && (
+                                                <span className="truncate">
+                                                    {tCustom("pageTitle")}
+                                                </span>
+                                            )}
+                                        </Link>
                                     </Button>
                                 </AnimateIcon>
                                 {showLabels && pinnedTemplates.length > 0 && (
@@ -419,8 +428,8 @@ export function Sidebar({ onClose }: SidebarProps) {
                                         type="button"
                                         aria-label={
                                             templatesExpanded
-                                                ? "Collapse pinned templates"
-                                                : "Expand pinned templates"
+                                                ? tCustom("collapsePinned")
+                                                : tCustom("expandPinned")
                                         }
                                         aria-expanded={templatesExpanded}
                                         onClick={() =>
@@ -454,8 +463,8 @@ export function Sidebar({ onClose }: SidebarProps) {
                                                 icon={Bookmark}
                                                 label={template.name}
                                                 showLabels={showLabels}
+                                                href={href}
                                                 onClick={() => {
-                                                    router.push(href);
                                                     if (isMobile) onClose();
                                                 }}
                                             />

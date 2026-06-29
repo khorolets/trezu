@@ -5,6 +5,7 @@
  * Code tab for raw manifest JSON) validates live, then saves via the `ChangePolicy`-gated create
  * endpoint. Lives at the reserved `create` slug.
  */
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PageComponentLayout } from "@/components/page-component-layout";
@@ -15,6 +16,7 @@ import { manifestIdOf } from "@/features/proposal-templates/manifest";
 import { useTreasury } from "@/hooks/use-treasury";
 
 export default function CreateTemplatePage() {
+    const t = useTranslations("customTemplates");
     const router = useRouter();
     const { treasuryId } = useTreasury();
     const createTemplate = useCreateProposalTemplate();
@@ -34,28 +36,28 @@ export default function CreateTemplatePage() {
                 name,
                 manifest,
             });
-            toast.success("Template created");
+            toast.success(t("create.toastCreated"));
             router.push(
                 `/${treasuryId}/custom-templates/${manifestIdOf(created.manifest)}`,
             );
         } catch (error) {
-            toast.error(apiErrorMessage(error, "Failed to create template"));
+            toast.error(apiErrorMessage(error, t("create.errCreate")));
         }
     }
 
     return (
         <PageComponentLayout
-            title="Request Templates"
-            description="Build reusable templates for custom request types."
+            title={t("pageTitle")}
+            description={t("pageDescription")}
         >
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
                 <TemplateEditor
-                    title="New Template"
+                    title={t("create.title")}
                     onBack={() =>
                         router.push(`/${treasuryId}/custom-templates`)
                     }
-                    submitLabel="Create Template"
-                    submittingLabel="Creating…"
+                    submitLabel={t("create.submit")}
+                    submittingLabel={t("create.submitting")}
                     submitting={createTemplate.isPending}
                     onSubmit={handleCreate}
                 />

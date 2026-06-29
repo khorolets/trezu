@@ -5,10 +5,12 @@
  *
  * Pure and framework-free, so it unit-tests without React or a wallet, and it reuses the manifest
  * module's `substitutePlaceholders` so the args it emits can never drift from what the validator
- * checked. v1 substitution is string-based: every `{{field}}` resolves to a string (NEAR amounts
- * stay digit strings, so u128 values never round-trip through a JS number). Typed JSON injection
- * (a `bool`/`json` field landing as a raw value rather than a string) is a deliberate non-goal here
- * — every v1 binding expresses its args as strings.
+ * checked. Two distinct rules govern the `args` tree: (1) placeholder substitution happens only
+ * inside string values — a `{{field}}` is replaced in-place and its value is always stringified
+ * (NEAR amounts stay digit strings, so u128 values never round-trip through a JS number); (2) any
+ * static non-string node in the template — a number, boolean, or nested object/array literal —
+ * passes through verbatim, keeping its JSON type. So a manifest can emit typed JSON args; what's
+ * string-only is the substitution of placeholders, not the args themselves.
  */
 import type { FunctionCallKind } from "@/lib/proposals-api";
 import { encodeToMarkdown, jsonToBase64 } from "@/lib/utils";

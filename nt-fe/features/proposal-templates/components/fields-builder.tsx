@@ -10,6 +10,7 @@
  * (after it's touched); `draftToField` drops type-incompatible extras on serialize.
  */
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Fragment, useId, useState } from "react";
 import { Button } from "@/components/button";
 import { Textarea } from "@/components/textarea";
@@ -60,6 +61,8 @@ export function FieldsBuilder({
     hideNames,
     onChange,
 }: FieldsBuilderProps) {
+    const t = useTranslations("customTemplates");
+
     function updateField(index: number, patch: Partial<FieldDraft>) {
         onChange(
             fields.map((field, i) =>
@@ -115,7 +118,7 @@ export function FieldsBuilder({
                 className="self-start px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
                 onClick={() => onChange([...fields, makeFieldDraft()])}
             >
-                <Plus className="size-4" /> Add Field
+                <Plus className="size-4" /> {t("fields.addField")}
             </Button>
         </div>
     );
@@ -147,10 +150,13 @@ function FieldRow({
     onRemove,
     onMove,
 }: FieldRowProps) {
+    const t = useTranslations("customTemplates");
     return (
         <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-2">
-                <h4 className="font-semibold text-sm">Input {index + 1}</h4>
+                <h4 className="font-semibold text-sm">
+                    {t("fields.inputHeading", { number: index + 1 })}
+                </h4>
                 <div className="flex items-center gap-1">
                     <Button
                         type="button"
@@ -177,13 +183,13 @@ function FieldRow({
                         className="text-muted-foreground hover:text-foreground"
                         onClick={onRemove}
                     >
-                        <Trash2 className="size-4" /> Remove
+                        <Trash2 className="size-4" /> {t("fields.remove")}
                     </Button>
                 </div>
             </div>
 
             <LabeledInput
-                label="Name"
+                label={t("fields.nameLabel")}
                 value={field.name}
                 onChange={(value) => onChange({ name: value })}
                 placeholder="greeting"
@@ -192,7 +198,7 @@ function FieldRow({
 
             {used ? null : (
                 <p className="text-amber-600 text-xs dark:text-amber-500">
-                    {`Unused — no argument uses {{${field.name}}}; members fill it but it isn't sent.`}
+                    {t("fields.unused", { name: field.name })}
                 </p>
             )}
 
@@ -218,6 +224,7 @@ export function FieldConfigFields({
     errors: string[];
     onChange: (patch: Partial<FieldDraft>) => void;
 }) {
+    const t = useTranslations("customTemplates");
     const requiredId = useId();
     // The options textarea isn't a LabeledInput, so it tracks its own touched state to match the
     // per-field "no error until touched" behavior.
@@ -258,13 +265,13 @@ export function FieldConfigFields({
         <div className="flex flex-col gap-3">
             <div className="grid gap-2 sm:grid-cols-2">
                 <LabeledInput
-                    label="Label"
+                    label={t("fields.label")}
                     value={field.label}
                     onChange={(value) => onChange({ label: value })}
                     placeholder="Greeting"
                     error={errorFor(errors, `${path}.label`)}
                 />
-                <Labeled label="Type">
+                <Labeled label={t("fields.typeLabel")}>
                     <Select
                         value={field.type}
                         onValueChange={(value) =>
@@ -286,7 +293,7 @@ export function FieldConfigFields({
                         <SelectContent>
                             {MANIFEST_FIELD_TYPES.map((type) => (
                                 <SelectItem key={type} value={type}>
-                                    {type}
+                                    {t(`fieldTypes.${type}`)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -304,13 +311,13 @@ export function FieldConfigFields({
                         }
                     />
                     <Label htmlFor={requiredId} className="text-sm">
-                        Required
+                        {t("fields.required")}
                     </Label>
                 </div>
             ) : null}
 
             {field.type === "select" ? (
-                <Labeled label="Options (one per line)">
+                <Labeled label={t("fields.optionsLabel")}>
                     <Textarea
                         rows={3}
                         className="font-mono text-xs"
@@ -352,22 +359,22 @@ export function FieldConfigFields({
                 ) : (
                     <ChevronDown className="size-3.5" />
                 )}
-                Advanced options
+                {t("fields.advancedOptions")}
             </button>
 
             {showAdvanced ? (
                 <div className="flex flex-col gap-3 border-t pt-3">
                     <LabeledInput
-                        label="Help (optional)"
+                        label={t("fields.helpLabel")}
                         value={field.help}
                         onChange={(value) => onChange({ help: value })}
-                        placeholder="Shown under the input"
+                        placeholder={t("fields.helpPlaceholder")}
                     />
 
                     {isNumeric ? (
                         <div className="grid gap-3 sm:grid-cols-2">
                             <LabeledInput
-                                label="Min (optional)"
+                                label={t("fields.minLabel")}
                                 value={field.validation.min}
                                 onChange={(value) =>
                                     setValidation({ min: value })
@@ -376,7 +383,7 @@ export function FieldConfigFields({
                                 error={minError}
                             />
                             <LabeledInput
-                                label="Max (optional)"
+                                label={t("fields.maxLabel")}
                                 value={field.validation.max}
                                 onChange={(value) =>
                                     setValidation({ max: value })
@@ -388,7 +395,7 @@ export function FieldConfigFields({
 
                     {allowsPattern ? (
                         <LabeledInput
-                            label="Pattern (regex, optional)"
+                            label={t("fields.patternLabel")}
                             value={field.validation.pattern}
                             onChange={(value) =>
                                 setValidation({ pattern: value })
@@ -400,7 +407,7 @@ export function FieldConfigFields({
 
                     {showDefault ? (
                         <LabeledInput
-                            label="Default (optional)"
+                            label={t("fields.defaultLabel")}
                             value={String(field.default ?? "")}
                             onChange={setDefault}
                             error={defaultError}

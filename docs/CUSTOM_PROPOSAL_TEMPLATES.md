@@ -11,8 +11,7 @@ template produces still passes the DAO's normal permissions and approvals, so a 
 never grants authority by itself.
 
 This doc is the canonical reference for the manifest DSL, the architecture, and the
-authoring UI. The in-app `/<dao>/custom-templates/about` page and the
-`author-custom-proposal-template` agent skill both derive from it.
+authoring UI. The in-app `/<dao>/custom-templates/about` page derives from it.
 
 ## What it produces
 
@@ -181,10 +180,9 @@ with blanks); Visual → Code serializes the draft back.
 
 Non-developers can generate a manifest by describing the proposal in plain English. The
 self-contained, distributable skill at
-[`skills/trezu-custom-proposal-template/`](../skills/trezu-custom-proposal-template/SKILL.md)
+[`docs/trezu-custom-proposal-template/`](./trezu-custom-proposal-template/SKILL.md)
 installs into Claude Code / Claude.ai / Codex (see its `README`) and produces a manifest
-to paste into the **Code** tab — it needs no repo access. (The `.claude/skills/` skill,
-by contrast, is for agents working *on* the trezu codebase.)
+to paste into the **Code** tab — it needs no repo access.
 
 ## Permissions
 

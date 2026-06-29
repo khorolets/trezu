@@ -16,6 +16,7 @@ import {
     Plus,
     Trash2,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -55,21 +56,20 @@ const HOW_IT_WORKS_URL =
 const MENU_ITEM_CLASS = "gap-3 px-3 py-2.5";
 
 function HowItWorksLink() {
+    const t = useTranslations("customTemplates");
     return (
-        <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground"
-            asChild
-        >
+        // Outline + default size so it reads as a real button and matches the height of the primary
+        // it sits beside (the empty-state "Create Template" and the list-header "Add New").
+        <Button variant="outline" asChild>
             <a href={HOW_IT_WORKS_URL} target="_blank" rel="noreferrer">
-                <CircleHelp className="size-4" /> How It Works
+                <CircleHelp className="size-4" /> {t("howItWorks")}
             </a>
         </Button>
     );
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
+    const t = useTranslations("customTemplates");
     return (
         <PageCard className="items-center gap-3 py-16 text-center">
             <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -77,17 +77,16 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
             </div>
             <div className="flex flex-col gap-1">
                 <h2 className="font-semibold text-base">
-                    Create your first template
+                    {t("index.emptyTitle")}
                 </h2>
                 <p className="max-w-sm text-muted-foreground text-sm">
-                    Make a template for requests you send often. Your team
-                    reuses it in one click.
+                    {t("index.emptyDescription")}
                 </p>
             </div>
             <div className="flex items-center gap-2">
                 <HowItWorksLink />
                 <Button onClick={onCreate}>
-                    <Plus className="size-4" /> Create Template
+                    <Plus className="size-4" /> {t("index.createTemplate")}
                 </Button>
             </div>
         </PageCard>
@@ -109,6 +108,7 @@ function TemplateRow({
     onTogglePin,
     onDelete,
 }: TemplateRowProps) {
+    const t = useTranslations("customTemplates");
     return (
         <div className="group flex min-h-[75px] items-center justify-between gap-3 rounded-xl bg-[#FAFAF9] p-4 dark:bg-muted">
             <div className="flex min-w-0 flex-col gap-0.5">
@@ -127,7 +127,7 @@ function TemplateRow({
                         <Button
                             variant="ghost"
                             size="icon-sm"
-                            aria-label="Template actions"
+                            aria-label={t("index.actions")}
                             className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                         >
                             <EllipsisVertical className="size-4" />
@@ -138,7 +138,7 @@ function TemplateRow({
                             onClick={onEdit}
                             className={MENU_ITEM_CLASS}
                         >
-                            <Pencil className="size-4" /> Edit
+                            <Pencil className="size-4" /> {t("index.edit")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onClick={onTogglePin}
@@ -146,12 +146,12 @@ function TemplateRow({
                         >
                             {template.pinned ? (
                                 <>
-                                    <PinOff className="size-4" /> Unpin Template
+                                    <PinOff className="size-4" />{" "}
+                                    {t("index.unpin")}
                                 </>
                             ) : (
                                 <>
-                                    <Pin className="size-4" /> Pin to the
-                                    Sidebar
+                                    <Pin className="size-4" /> {t("index.pin")}
                                 </>
                             )}
                         </DropdownMenuItem>
@@ -159,17 +159,20 @@ function TemplateRow({
                             onClick={onDelete}
                             className={MENU_ITEM_CLASS}
                         >
-                            <Trash2 className="size-4" /> Delete
+                            <Trash2 className="size-4" /> {t("index.delete")}
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
-                <Button onClick={onCreateRequest}>Create Request</Button>
+                <Button onClick={onCreateRequest}>
+                    {t("index.createRequest")}
+                </Button>
             </div>
         </div>
     );
 }
 
 export default function CustomTemplatesIndexPage() {
+    const t = useTranslations("customTemplates");
     const router = useRouter();
     const { treasuryId } = useTreasury();
     const { data: templates, isLoading } = useProposalTemplates();
@@ -190,7 +193,7 @@ export default function CustomTemplatesIndexPage() {
             { id: template.id, input: { pinned: !template.pinned } },
             {
                 onError: (error) =>
-                    toast.error(apiErrorMessage(error, "Could not update pin")),
+                    toast.error(apiErrorMessage(error, t("index.errPin"))),
             },
         );
     }
@@ -203,22 +206,22 @@ export default function CustomTemplatesIndexPage() {
         setConfirmingDelete(null);
         try {
             await deleteTemplate.mutateAsync(template.id);
-            toast.success("Template deleted");
+            toast.success(t("toastDeleted"));
         } catch (error) {
-            toast.error(apiErrorMessage(error, "Failed to delete template"));
+            toast.error(apiErrorMessage(error, t("errDelete")));
         }
     }
 
     return (
         <PageComponentLayout
-            title="Request Templates"
-            description="Build reusable templates for custom request types."
+            title={t("pageTitle")}
+            description={t("pageDescription")}
         >
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
                 {isLoading ? (
                     <PageCard>
                         <p className="text-muted-foreground text-sm">
-                            Loading…
+                            {t("loading")}
                         </p>
                     </PageCard>
                 ) : enabled.length === 0 ? (
@@ -227,7 +230,7 @@ export default function CustomTemplatesIndexPage() {
                     <PageCard className="gap-4 p-5">
                         <div className="flex items-center justify-between gap-2">
                             <h2 className="font-semibold text-base">
-                                Templates
+                                {t("index.heading")}
                             </h2>
                             <div className="flex items-center gap-2">
                                 <HowItWorksLink />
@@ -235,7 +238,7 @@ export default function CustomTemplatesIndexPage() {
                                     variant="secondary"
                                     onClick={() => go("/create")}
                                 >
-                                    <Plus className="size-4" /> Add New
+                                    <Plus className="size-4" /> {t("index.addNew")}
                                 </Button>
                             </div>
                         </div>
@@ -271,15 +274,15 @@ export default function CustomTemplatesIndexPage() {
             >
                 <DialogContent className="max-w-md gap-4">
                     <DialogHeader>
-                        <DialogTitle>Delete template</DialogTitle>
+                        <DialogTitle>{t("deleteDialog.title")}</DialogTitle>
                     </DialogHeader>
                     <DialogDescription>
-                        Delete{" "}
-                        <span className="font-semibold">
-                            {confirmingDelete?.name}
-                        </span>
-                        ? Members will no longer be able to file proposals from
-                        it. This cannot be undone.
+                        {t.rich("deleteDialog.body", {
+                            name: confirmingDelete?.name ?? "",
+                            b: (chunks) => (
+                                <span className="font-semibold">{chunks}</span>
+                            ),
+                        })}
                     </DialogDescription>
                     <DialogFooter>
                         <Button
@@ -288,7 +291,9 @@ export default function CustomTemplatesIndexPage() {
                             disabled={deleteTemplate.isPending}
                             onClick={handleDelete}
                         >
-                            {deleteTemplate.isPending ? "Deleting…" : "Delete"}
+                            {deleteTemplate.isPending
+                                ? t("deleteDialog.deleting")
+                                : t("deleteDialog.confirm")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -16,6 +16,7 @@ use near_api::AccountId;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgPool;
+use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -154,6 +155,25 @@ fn validate_manifest(manifest: &Value) -> Result<Value, String> {
         .ok_or("manifest.binding must be an object")?;
     let receiver_id = trimmed(binding, "receiver_id", "binding.receiver_id")?;
     let method_name = trimmed(binding, "method_name", "binding.method_name")?;
+
+    // `receiver_id`/`method_name` go straight into the on-chain FunctionCall, so reject free text
+    // (e.g. "I m the receiver" / "the method") that would file an un-callable proposal. Mirrors the
+    // frontend manifest validator (NEAR_ACCOUNT_RE + method-name rule in nt-fe manifest.ts).
+    AccountId::from_str(&receiver_id)
+        .map_err(|_| "manifest.binding.receiver_id must be a valid NEAR account id".to_string())?;
+    let method_ok = method_name
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && method_name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_');
+    if !method_ok {
+        return Err(
+            "manifest.binding.method_name must be a valid contract method name ([A-Za-z0-9_], no spaces)"
+                .to_string(),
+        );
+    }
 
     if !obj.get("fields").map(Value::is_array).unwrap_or(false) {
         return Err("manifest.fields must be an array".to_string());
@@ -966,6 +986,9 @@ mod tests {
             json!({ "id": "x", "title": "t", "binding": { "receiver_id": "a.near" }, "fields": [] }),
             json!({ "id": "x", "title": "t", "binding": binding.clone() }), // missing fields
             json!({ "id": "x", "title": "t", "binding": binding.clone(), "fields": {} }), // fields not array
+            // free-text receiver / method that can't name a real account or method
+            json!({ "id": "x", "title": "t", "binding": { "receiver_id": "I m the receiver", "method_name": "m" }, "fields": [] }),
+            json!({ "id": "x", "title": "t", "binding": { "receiver_id": "a.near", "method_name": "the method" }, "fields": [] }),
         ];
         for case in rejected {
             assert!(

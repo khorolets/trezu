@@ -6,6 +6,7 @@
  * `ChangePolicy`-gated update endpoint. Delete is confirmed in a dialog and returns to the index. A
  * non-author hitting save/delete gets the backend's 403 as a toast.
  */
+import { useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ import { manifestIdOf } from "@/features/proposal-templates/manifest";
 import { useTreasury } from "@/hooks/use-treasury";
 
 export default function EditTemplatePage() {
+    const t = useTranslations("customTemplates");
     const router = useRouter();
     const params = useParams();
     const slug = params?.slug as string | undefined;
@@ -59,12 +61,12 @@ export default function EditTemplatePage() {
                 id: template.id,
                 input: { name, manifest },
             });
-            toast.success("Template saved");
+            toast.success(t("edit.toastSaved"));
             router.push(
                 `/${treasuryId}/custom-templates/${manifestIdOf(updated.manifest)}`,
             );
         } catch (error) {
-            toast.error(apiErrorMessage(error, "Failed to save template"));
+            toast.error(apiErrorMessage(error, t("edit.errSave")));
         }
     }
 
@@ -75,29 +77,29 @@ export default function EditTemplatePage() {
         setConfirmingDelete(false);
         try {
             await deleteTemplate.mutateAsync(template.id);
-            toast.success("Template deleted");
+            toast.success(t("toastDeleted"));
             router.push(`/${treasuryId}/custom-templates`);
         } catch (error) {
-            toast.error(apiErrorMessage(error, "Failed to delete template"));
+            toast.error(apiErrorMessage(error, t("errDelete")));
         }
     }
 
     return (
         <PageComponentLayout
-            title="Request Templates"
-            description="Build reusable templates for custom request types."
+            title={t("pageTitle")}
+            description={t("pageDescription")}
         >
             <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
                 {isLoading ? (
                     <PageCard>
                         <p className="text-muted-foreground text-sm">
-                            Loading…
+                            {t("loading")}
                         </p>
                     </PageCard>
                 ) : template ? (
                     <TemplateEditor
                         key={template.id}
-                        title="Edit Template"
+                        title={t("edit.title")}
                         onBack={() =>
                             router.push(`/${treasuryId}/custom-templates`)
                         }
@@ -107,7 +109,7 @@ export default function EditTemplatePage() {
                             null,
                             2,
                         )}
-                        submitLabel="Save Changes"
+                        submitLabel={t("edit.submit")}
                         submitting={updateTemplate.isPending}
                         onSubmit={handleUpdate}
                         footer={
@@ -121,14 +123,14 @@ export default function EditTemplatePage() {
                                 }
                                 onClick={() => setConfirmingDelete(true)}
                             >
-                                Delete Template
+                                {t("edit.deleteButton")}
                             </Button>
                         }
                     />
                 ) : (
                     <PageCard>
                         <p className="text-muted-foreground text-sm">
-                            Template not found.
+                            {t("edit.notFound")}
                         </p>
                     </PageCard>
                 )}
@@ -140,13 +142,15 @@ export default function EditTemplatePage() {
             >
                 <DialogContent className="max-w-md gap-4">
                     <DialogHeader>
-                        <DialogTitle>Delete template</DialogTitle>
+                        <DialogTitle>{t("deleteDialog.title")}</DialogTitle>
                     </DialogHeader>
                     <DialogDescription>
-                        Delete{" "}
-                        <span className="font-semibold">{template?.name}</span>?
-                        Members will no longer be able to file proposals from
-                        it. This cannot be undone.
+                        {t.rich("deleteDialog.body", {
+                            name: template?.name ?? "",
+                            b: (chunks) => (
+                                <span className="font-semibold">{chunks}</span>
+                            ),
+                        })}
                     </DialogDescription>
                     <DialogFooter>
                         <Button
@@ -155,7 +159,9 @@ export default function EditTemplatePage() {
                             disabled={deleteTemplate.isPending}
                             onClick={handleDelete}
                         >
-                            {deleteTemplate.isPending ? "Deleting…" : "Delete"}
+                            {deleteTemplate.isPending
+                                ? t("deleteDialog.deleting")
+                                : t("deleteDialog.confirm")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

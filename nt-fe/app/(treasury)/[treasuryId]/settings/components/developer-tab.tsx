@@ -7,6 +7,7 @@ import { CodeXml } from "lucide-react";
  * the sidebar; the first time a treasury turns it on, we run the one-step onboarding tour pointing
  * at that freshly revealed item.
  */
+import { useTranslations } from "next-intl";
 import { useNextStep } from "nextstepjs";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ import {
 import { useTreasury } from "@/hooks/use-treasury";
 
 export function DeveloperTab() {
+    const t = useTranslations("customTemplates");
     const { treasuryId } = useTreasury();
     const { data: enabled, isLoading } = useCustomRequestsEnabled();
     const setEnabled = useSetCustomRequestsEnabled();
@@ -67,7 +69,7 @@ export function DeveloperTab() {
             },
             onError: (error) =>
                 toast.error(
-                    apiErrorMessage(error, "Could not update the setting"),
+                    apiErrorMessage(error, t("developer.errUpdate")),
                 ),
         });
     }
@@ -79,11 +81,11 @@ export function DeveloperTab() {
                     <CodeXml className="size-5" />
                 </div>
                 <div className="flex flex-1 flex-col gap-1">
-                    <h3 className="font-semibold text-base">Custom Requests</h3>
+                    <h3 className="font-semibold text-base">
+                        {t("developer.title")}
+                    </h3>
                     <p className="text-muted-foreground text-sm">
-                        Build your own request types when you need more than
-                        payments and exchange. Add the fields you need and your
-                        members can submit them like any other request.
+                        {t("developer.description")}
                     </p>
                 </div>
                 <Button
@@ -91,7 +93,7 @@ export function DeveloperTab() {
                     disabled={isLoading || setEnabled.isPending}
                     onClick={() => toggle(!enabled)}
                 >
-                    {enabled ? "Disable" : "Enable"}
+                    {enabled ? t("developer.disable") : t("developer.enable")}
                 </Button>
             </div>
         </PageCard>

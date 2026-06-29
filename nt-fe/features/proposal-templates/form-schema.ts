@@ -12,10 +12,8 @@
 import { z } from "zod";
 import Big from "@/lib/big";
 import type { FieldValues } from "./build-proposal";
-import type { Manifest, ManifestField } from "./manifest";
+import { type Manifest, type ManifestField, NEAR_ACCOUNT_RE } from "./manifest";
 
-// NEAR account-id shape (sync; on-chain existence is the input component's concern).
-const NEAR_ACCOUNT_RE = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
 const INTEGER_RE = /^\d+$/;
 
 /**
@@ -36,6 +34,12 @@ function isParseableJson(value: string): boolean {
         return false;
     }
 }
+
+// A field's `validation.pattern` is an author-supplied regex run client-side as the member types.
+// Bounding the input length fed to `.test` limits catastrophic-backtracking (ReDoS) blow-up — input
+// length is the lever that turns an accidentally bad pattern into a frozen tab. Pattern length is
+// capped at parse time (manifest.ts); real pattern-validated fields (codes, ids) are short anyway.
+const MAX_PATTERN_INPUT = 256;
 
 function safeRegExp(pattern: string): RegExp | null {
     try {
@@ -116,7 +120,10 @@ function fieldValueSchema(field: ManifestField): z.ZodTypeAny {
         : null;
     if (pattern) {
         schema = schema.refine(
-            allowEmpty((value) => pattern.test(value)),
+            allowEmpty(
+                (value) =>
+                    value.length <= MAX_PATTERN_INPUT && pattern.test(value),
+            ),
             {
                 message: `${field.label} does not match the required pattern`,
             },

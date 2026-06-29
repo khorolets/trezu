@@ -73,6 +73,32 @@ const fieldName = z
         "field.name must be a {{placeholder}}-safe identifier ([A-Za-z0-9_])",
     );
 
+// `binding.receiver_id`/`method_name` go straight into the on-chain FunctionCall, so they must be a
+// real account and a real method — not free text. Without this, "I m the receiver" / "the method"
+// pass and the template files an un-callable proposal. The account rule is shared with the `account`
+// field type (form-schema imports NEAR_ACCOUNT_RE) so the two can't drift.
+export const NEAR_ACCOUNT_RE =
+    /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
+const nearAccountString = (label: string) =>
+    nonBlankString(label).regex(
+        NEAR_ACCOUNT_RE,
+        `${label} must be a valid NEAR account id (lowercase, e.g. usdc.near)`,
+    );
+
+// Contract method names are identifiers in practice (ft_transfer, set_greeting); reject whitespace
+// and other free text that could never name a real method.
+const METHOD_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const methodNameString = (label: string) =>
+    nonBlankString(label).regex(
+        METHOD_NAME_RE,
+        `${label} must be a valid contract method name ([A-Za-z0-9_], no spaces)`,
+    );
+
+// Cap an author-supplied pattern's source length. The pattern is compiled and run client-side as
+// members type, so an overlong one is both a likely mistake and a catastrophic-backtracking (ReDoS)
+// lever; no legitimate field constraint needs more. Pairs with the input-length cap in form-schema.
+const MAX_PATTERN_LENGTH = 200;
+
 /** Whether `pattern` compiles as a regex — a typo'd pattern must fail authoring, not drop silently. */
 function isValidRegExp(pattern: string): boolean {
     try {
@@ -87,7 +113,13 @@ export const manifestFieldValidationSchema = z
     .object({
         min: integerString("validation.min").optional(),
         max: integerString("validation.max").optional(),
-        pattern: z.string().optional(),
+        pattern: z
+            .string()
+            .max(
+                MAX_PATTERN_LENGTH,
+                `validation.pattern must be at most ${MAX_PATTERN_LENGTH} characters`,
+            )
+            .optional(),
     })
     .refine(
         (validation) =>
@@ -212,8 +244,8 @@ export type ManifestField = z.infer<typeof manifestFieldSchema>;
 
 /** The on-chain call the template produces. Fixed in v1 (no user-driven binding). */
 export const manifestBindingSchema = z.object({
-    receiver_id: nonBlankString("binding.receiver_id"),
-    method_name: nonBlankString("binding.method_name"),
+    receiver_id: nearAccountString("binding.receiver_id"),
+    method_name: methodNameString("binding.method_name"),
     deposit: integerString("binding.deposit"),
     gas: integerString("binding.gas"),
 });

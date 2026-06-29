@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 export async function generateMetadata(): Promise<Metadata> {
-    return { title: "Request Templates" };
+    const t = await getTranslations("customTemplates");
+    return { title: t("pageTitle") };
 }
 
 export default function CustomTemplatesLayout({

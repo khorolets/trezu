@@ -11,6 +11,7 @@
  * JSON); Visual → Code serializes the draft back to text. The active mode is the source of truth.
  */
 import { ArrowLeft } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/button";
@@ -133,6 +134,7 @@ export function TemplateEditor({
     submitting = false,
     footer,
 }: TemplateEditorProps) {
+    const t = useTranslations("customTemplates");
     const [name, setName] = useState(initialName);
     const [manifestText, setManifestText] = useState(initialManifestText);
     // Default to Visual; fall back to Code only when editing a manifest that doesn't parse.
@@ -169,9 +171,7 @@ export function TemplateEditor({
             try {
                 parsed = manifestText.trim() ? JSON.parse(manifestText) : {};
             } catch {
-                toast.error(
-                    "Fix the invalid JSON before switching to the visual builder",
-                );
+                toast.error(t("editor.invalidJsonToast"));
                 return;
             }
             setDraft(normalizeFields(jsonToDraft(parsed)));
@@ -189,7 +189,7 @@ export function TemplateEditor({
                 <button
                     type="button"
                     onClick={onBack}
-                    aria-label="Back"
+                    aria-label={t("back")}
                     className="text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <ArrowLeft className="size-5" />
@@ -197,29 +197,39 @@ export function TemplateEditor({
                 <h2 className="font-semibold text-base">{title}</h2>
             </div>
 
-            <InputBlock title="Name" invalid={nameTouched && nameMissing}>
+            <InputBlock
+                title={t("editor.nameLabel")}
+                invalid={nameTouched && nameMissing}
+            >
                 <LargeInput
                     borderless
-                    aria-label="Name"
+                    aria-label={t("editor.nameLabel")}
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     onBlur={() => setNameTouched(true)}
-                    placeholder="Set Greeting"
+                    placeholder={t("editor.namePlaceholder")}
                 />
                 {nameTouched && nameMissing ? (
-                    <p className="text-destructive text-sm">Name is required</p>
+                    <p className="text-destructive text-sm">
+                        {t("editor.nameRequired")}
+                    </p>
                 ) : null}
             </InputBlock>
 
             <Tabs value={mode} onValueChange={switchMode}>
                 <TabsList>
-                    <TabsTrigger value="visual">Visual</TabsTrigger>
-                    <TabsTrigger value="code">Code</TabsTrigger>
+                    <TabsTrigger value="visual">
+                        {t("editor.tabVisual")}
+                    </TabsTrigger>
+                    <TabsTrigger value="code">{t("editor.tabCode")}</TabsTrigger>
                 </TabsList>
             </Tabs>
 
             {mode === "code" ? (
-                <InputBlock title="Manifest (JSON)" invalid={codeShowErrors}>
+                <InputBlock
+                    title={t("editor.manifestLabel")}
+                    invalid={codeShowErrors}
+                >
                     <Textarea
                         borderless
                         rows={16}

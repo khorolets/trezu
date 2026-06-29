@@ -20,7 +20,8 @@ type PageTourKey =
     | "exchangeSettings"
     | "membersPending"
     | "guestSaveIntro"
-    | "guestSaveAction";
+    | "guestSaveAction"
+    | "requestTemplates";
 
 function PageTourContent({ k }: { k: PageTourKey }) {
     const t = useTranslations("pageTours");
@@ -188,12 +189,7 @@ export const REQUEST_TEMPLATES_TOUR: Tour = {
     steps: [
         {
             ...defaultStepProps,
-            content: (
-                <>
-                    Custom Requests is ready. Open it here to build your first
-                    request type.
-                </>
-            ),
+            content: <PageTourContent k="requestTemplates" />,
             selector: PAGE_TOUR_SELECTORS.REQUEST_TEMPLATES_NAV,
             side: "right",
         },

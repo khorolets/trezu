@@ -7,6 +7,7 @@
  * same gasless-relayer route the core proposals use, so a custom request behaves like a built-in one.
  */
 import { ArrowLeft } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageCard } from "@/components/card";
@@ -27,6 +28,7 @@ import { useTreasuryPolicy } from "@/hooks/use-treasury-queries";
 import { useNear } from "@/stores/near-store";
 
 export default function CustomTemplatePage() {
+    const t = useTranslations("customTemplates");
     const params = useParams();
     const router = useRouter();
     const slug = params?.slug as string | undefined;
@@ -73,7 +75,7 @@ export default function CustomTemplatePage() {
                 parsed.data,
                 values,
             );
-            await createProposal("Request filed", {
+            await createProposal(t("fill.proposalFiled"), {
                 treasuryId,
                 proposal: { description, kind },
                 proposalBond: policy?.proposal_bond ?? "0",
@@ -86,26 +88,26 @@ export default function CustomTemplatePage() {
 
     return (
         <PageComponentLayout
-            title="Request Templates"
-            description="Build reusable templates for custom request types."
+            title={t("pageTitle")}
+            description={t("pageDescription")}
         >
             <div className="mx-auto flex w-full max-w-[600px] flex-col gap-4">
                 {isLoading ? (
                     <PageCard>
                         <p className="text-muted-foreground text-sm">
-                            Loading…
+                            {t("loading")}
                         </p>
                     </PageCard>
                 ) : !template ? (
                     <PageCard>
                         <p className="text-muted-foreground text-sm">
-                            No template found for &ldquo;{slug}&rdquo;.
+                            {t("fill.noTemplate", { slug: slug ?? "" })}
                         </p>
                     </PageCard>
                 ) : parsed && !parsed.success ? (
                     <PageCard>
                         <div className="text-destructive text-sm">
-                            <p>This template&apos;s manifest is invalid:</p>
+                            <p>{t("fill.invalidManifest")}</p>
                             <ul className="list-disc pl-5">
                                 {manifestErrorMessages(parsed.error).map(
                                     (message) => (
@@ -125,7 +127,7 @@ export default function CustomTemplatePage() {
                                         `/${treasuryId}/custom-templates`,
                                     )
                                 }
-                                aria-label="Back"
+                                aria-label={t("back")}
                                 className="text-muted-foreground transition-colors hover:text-foreground"
                             >
                                 <ArrowLeft className="size-5" />

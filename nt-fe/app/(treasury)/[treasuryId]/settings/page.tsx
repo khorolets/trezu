@@ -65,7 +65,9 @@ function SettingsPageContent() {
                   },
               ]
             : []),
-        ...(showDeveloper ? [{ value: "developer", label: "Developer" }] : []),
+        ...(showDeveloper
+            ? [{ value: "developer", label: tTabs("developer") }]
+            : []),
     ];
 
     return (
